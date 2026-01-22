@@ -1,0 +1,251 @@
+version: '3.8'
+
+networks:
+  office_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  minio_data:
+  grafana_data:
+  prometheus_data:
+  loki_data:
+  promtail_data:
+  weaviate_data:
+
+# 中间件组 - 只保留使用官方镜像的服务
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15
+    container_name: office_assistant_postgres
+    networks: [office_network]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=office_user
+      - POSTGRES_PASSWORD=office_password
+      - POSTGRES_DB=office_assistant
+      - POSTGRES_LOGGING_COLLECTOR=on
+      - POSTGRES_LOG_DESTINATION=stderr
+      - POSTGRES_LOG_FORMAT=json
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U office_user -d office_assistant"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+
+  # Redis缓存
+  redis:
+    image: redis:7
+    container_name: office_assistant_redis
+    networks: [office_network]
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--loglevel", "notice"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+
+  # RabbitMQ消息队列
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: office_assistant_rabbitmq
+    networks: [office_network]
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=rabbitmq_user
+      - RABBITMQ_DEFAULT_PASS=rabbitmq_password
+      - RABBITMQ_DEFAULT_VHOST=office_assistant
+      - RABBITMQ_LOGS=- 
+      - RABBITMQ_SASL_LOGS=- 
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+
+  # MinIO对象存储
+  minio:
+    image: minio/minio:latest
+    container_name: office_assistant_minio
+    networks: [office_network]
+    volumes:
+      - minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=minio_user
+      - MINIO_ROOT_PASSWORD=minio_password
+      - MINIO_LOG_LEVEL=info
+      - MINIO_LOG_FORMAT=json
+    command: server /data --console-address :9001
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+
+  # Weaviate向量数据库
+  weaviate:
+    image: semitechnologies/weaviate:latest
+    container_name: office_assistant_weaviate
+    networks: [office_network]
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    environment:
+      - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
+      - PERSISTENCE_DATA_PATH=/var/lib/weaviate
+      - DEFAULT_VECTORIZER_MODULE=none
+      - ENABLE_MODULES=text2vec-openai
+      - CLUSTER_DISABLED=true
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+
+  # Prometheus监控
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: office_assistant_prometheus
+    networks: [office_network]
+    volumes:
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+
+  # Loki日志收集系统
+  loki:
+    image: grafana/loki:latest
+    container_name: office_assistant_loki
+    networks: [office_network]
+    volumes:
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    # 移除健康检查，因为容器内没有可用的网络工具
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+
+  # Promtail日志代理
+  promtail:
+    image: grafana/promtail:latest
+    container_name: office_assistant_promtail
+    networks: [office_network]
+    volumes:
+      - promtail_data:/promtail
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - loki
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    # 移除健康检查，因为容器内没有可用的网络工具
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+
+  # Grafana可视化
+  grafana:
+    image: grafana/grafana:latest
+    container_name: office_assistant_grafana
+    networks: [office_network]
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin_password
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
