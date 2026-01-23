@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 networks:
   office_network:
@@ -83,8 +83,8 @@ services:
       - RABBITMQ_DEFAULT_USER=rabbitmq_user
       - RABBITMQ_DEFAULT_PASS=rabbitmq_password
       - RABBITMQ_DEFAULT_VHOST=office_assistant
-      - RABBITMQ_LOGS=- 
-      - RABBITMQ_SASL_LOGS=- 
+      - RABBITMQ_LOGS=-
+      - RABBITMQ_SASL_LOGS=-
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -240,6 +240,49 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+
+  # FastAPI 后端 - 认证与授权服务
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: office_assistant_backend
+    networks: [office_network]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - DATABASE_USER=office_user
+      - DATABASE_PASSWORD=office_password
+      - DATABASE_HOST=office_assistant_postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=office_assistant
+      - REDIS_HOST=office_assistant_redis
+      - REDIS_PORT=6379
+      - JWT_SECRET_KEY=your-super-secret-key-change-this-in-production
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+      - PASSWORD_MIN_LENGTH=8
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
       retries: 3
