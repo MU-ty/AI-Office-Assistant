@@ -359,5 +359,12 @@ class MeetingMinutesService:
         pass
 
 
-# 全局实例
-meeting_minutes_service = MeetingMinutesService
+# 服务工厂函数，而不是在模块级创建全局实例
+def get_meeting_minutes_service(db: AsyncSession) -> MeetingMinutesService:
+    """
+    获取会议纪要服务实例
+
+    使用时通过依赖注入或手动传入 db 会话：
+        service = get_meeting_minutes_service(db)
+    """
+    return MeetingMinutesService(db)
