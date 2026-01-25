@@ -279,20 +279,48 @@ class MeetingMinutesService:
             logger.error(f"纪要生成失败: {e}")
             return {"error": str(e)}
     
+    def _ensure_upload_dir(self) -> str:
+        """
+        确保上传目录存在
+        
+        Returns:
+            上传目录路径
+        
+        Raises:
+            OSError: 当目录无法创建且不存在时抛出
+        """
+        upload_dir = settings.UPLOAD_DIR
+        try:
+            os.makedirs(upload_dir, exist_ok=True)
+        except OSError as e:
+            # 如果目录不存在且无法创建，则记录错误并抛出异常
+            if not os.path.isdir(upload_dir):
+                logger.error(f"创建上传目录失败: {upload_dir} - {e}")
+                raise
+        return upload_dir
+    
     def _save_markdown(self, meeting_id: str, content: str) -> str:
         """保存Markdown格式的纪要"""
-        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-        path = os.path.join(settings.UPLOAD_DIR, f"{meeting_id}_minutes.md")
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
+        upload_dir = self._ensure_upload_dir()
+        path = os.path.join(upload_dir, f"{meeting_id}_minutes.md")
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(content)
+        except (OSError, IOError) as e:
+            logger.error(f"保存Markdown纪要失败: meeting_id={meeting_id}, path={path}, error={e}")
+            raise
         return path
     
     def _save_json(self, meeting_id: str, content: str) -> str:
         """保存JSON格式的纪要"""
-        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-        path = os.path.join(settings.UPLOAD_DIR, f"{meeting_id}_minutes.json")
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
+        upload_dir = self._ensure_upload_dir()
+        path = os.path.join(upload_dir, f"{meeting_id}_minutes.json")
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(content)
+        except (OSError, IOError) as e:
+            logger.error(f"保存JSON纪要失败: meeting_id={meeting_id}, path={path}, error={e}")
+            raise
         return path
     
     # ============================================================
