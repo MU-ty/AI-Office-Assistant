@@ -1,0 +1,40 @@
+2026-01-25 15:10:23 | app.core.database | INFO     | <module>:26 | 创建数据库目录: ./data
+2026-01-25 15:10:23 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:11:32 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:13:02 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:13:18 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:13:36 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:13:36 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:13:41 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:13:41 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:13:48 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:13:48 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:13:57 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:14:10 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:14:10 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:14:10 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:17:41 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:17:41 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:25:10 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:26:19 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:26:41 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:26:41 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:26:45 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:26:45 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:26:48 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:26:48 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:26:51 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:26:51 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:26:56 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:26:56 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:27:02 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:27:02 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:27:13 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:27:13 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:27:14 | app.core.database | ERROR    | init_db:88 | ❌ 数据库初始化失败: cannot import name 'document' from 'app.models' (C:\Users\34176\Desktop\办公助手\backend\app\models\__init__.py)
+2026-01-25 15:28:24 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:28:25 | app.core.database | ERROR    | init_db:88 | ❌ 数据库初始化失败: cannot import name 'document' from 'app.models' (C:\Users\34176\Desktop\办公助手\backend\app\models\__init__.py)
+2026-01-25 15:29:30 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:29:32 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-25 15:30:52 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-25 15:30:53 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成

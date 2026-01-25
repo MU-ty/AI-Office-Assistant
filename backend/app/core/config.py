@@ -25,8 +25,27 @@ class Settings(BaseSettings):
     # 数据库配置
     # ============================================================
     
-    # PostgreSQL
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/office_assistant"
+    # 数据库类型: sqlite (开发) 或 postgresql (生产)
+    DB_TYPE: str = "sqlite"  # 改为 "postgresql" 使用 PostgreSQL
+    
+    # PostgreSQL (生产)
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "password"
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str = "office_assistant"
+    
+    # SQLite (开发)
+    SQLITE_DB_PATH: str = "./data/office_assistant.db"
+    
+    @property
+    def DATABASE_URL(self) -> str:
+        """动态生成数据库 URL"""
+        if self.DB_TYPE == "postgresql":
+            return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        else:  # sqlite
+            return f"sqlite+aiosqlite:///{self.SQLITE_DB_PATH}"
+    
     SQLALCHEMY_ECHO: bool = False
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
