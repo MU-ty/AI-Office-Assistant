@@ -13,9 +13,9 @@ export default function MeetingModule() {
     useMeeting();
 
   return (
-    <div className="flex-1 flex gap-0 max-w-7xl mx-auto m-6 overflow-hidden">
+    <div className="flex-1 flex gap-0 overflow-hidden w-full h-full border border-slate-200 rounded-lg shadow-lg">
       {/* 左侧边栏 - 工作流区域 */}
-      <div className="w-80 bg-slate-50 border-r border-slate-200 flex flex-col">
+      <div className="w-80 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0">
         {/* 侧边栏头部 */}
         <div className="p-6 border-b border-slate-200 bg-white">
           <div className="flex items-center gap-3 mb-2">
