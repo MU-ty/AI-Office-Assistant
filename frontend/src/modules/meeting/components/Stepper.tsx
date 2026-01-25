@@ -17,34 +17,53 @@ interface MeetingStepperProps {
 
 export function MeetingStepper({ steps, currentStep }: MeetingStepperProps) {
   return (
-    <div className="flex flex-col gap-4 w-full max-w-xs bg-white p-4 rounded-xl border shadow-sm">
-      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-        执行工作流
-      </h3>
-      <div className="space-y-4">
-        {steps.map((step) => (
-          <div key={step.id} className="flex items-center gap-3">
+    <div className="space-y-3">
+      {steps.map((step, index) => (
+        <div key={step.id} className="flex items-start gap-3">
+          <div className="flex flex-col items-center">
             {step.status === "completed" && (
-              <CheckCircle2 className="w-5 h-5 text-green-500" />
+              <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
+                <CheckCircle2 className="w-4 h-4 text-white" />
+              </div>
             )}
             {step.status === "loading" && (
-              <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+              <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
+              </div>
             )}
             {step.status === "waiting" && (
-              <Circle className="w-5 h-5 text-slate-300" />
+              <div className="w-6 h-6 rounded-full border-2 border-slate-300 bg-white" />
             )}
+            {index < steps.length - 1 && (
+              <div
+                className={cn(
+                  "w-0.5 h-8 mt-1",
+                  step.status === "completed" ? "bg-green-500" : "bg-slate-200",
+                )}
+              />
+            )}
+          </div>
 
+          <div className="flex-1 pt-0.5">
             <span
               className={cn(
-                "text-sm font-medium",
+                "text-sm font-medium block",
                 step.status === "waiting" ? "text-slate-400" : "text-slate-700",
               )}
             >
               {step.label}
             </span>
+            {step.status === "loading" && (
+              <span className="text-xs text-blue-600 mt-1 block">
+                进行中...
+              </span>
+            )}
+            {step.status === "completed" && (
+              <span className="text-xs text-green-600 mt-1 block">已完成</span>
+            )}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   );
 }
