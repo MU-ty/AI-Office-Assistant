@@ -23,7 +23,8 @@ from app.api import (
     polish_tasks,
     translation_tasks,
     ppt_projects,
-    weekly_reports
+    weekly_reports,
+    stream  # 新增: 流式处理服务
 )
 
 logger = get_logger(__name__)
@@ -146,6 +147,13 @@ async def request_logging_middleware(request: Request, call_next):
 # 健康检查
 app.include_router(health.router, tags=["Health"])
 
+# 流式处理服务 (新增)
+app.include_router(
+    stream.router,
+    prefix="/api/v1/stream",
+    tags=["Stream"]
+)
+
 # 用户认证模块
 app.include_router(
     users.router,
@@ -208,7 +216,17 @@ async def root():
         "version": "1.0.0",
         "status": "running",
         "docs": "/api/docs",
-        "openapi": "/api/openapi.json"
+        "openapi": "/api/openapi.json",
+        "endpoints": {
+            "流式处理": "/api/v1/stream",
+            "学术润色": "/api/v1/polish",
+            "会议记录": "/api/v1/meetings",
+            "文档生成": "/api/v1/documents",
+            "用户管理": "/api/v1/users",
+            "翻译": "/api/v1/translations",
+            "PPT生成": "/api/v1/ppt",
+            "周报生成": "/api/v1/reports"
+        }
     }
 
 
