@@ -149,49 +149,8 @@ class PPTService:
 
 
 # ============================================================
-# 周报生成服务
+# 周报生成服务 - 已在 report_service.py 中完整实现
 # ============================================================
 
-class ReportService:
-    """周报生成服务"""
-    
-    def __init__(self, db: AsyncSession):
-        self.db = db
-    
-    async def create_log(self, log_data) -> dict:
-        """创建工作日志"""
-        # TODO: 实现日志创建逻辑
-        logger.info("创建工作日志")
-        pass
-    
-    async def list_logs(self, user_id: str, date_from, date_to) -> list:
-        """获取日志列表"""
-        pass
-    
-    async def create_report(self, report_data) -> dict:
-        """生成周报"""
-        pass
-    
-    async def list_reports(self, skip: int, limit: int, status) -> list:
-        """获取周报列表"""
-        pass
-    
-    async def get_report(self, report_id: str) -> dict:
-        """获取周报详情"""
-        pass
-    
-    async def update_report(self, report_id: str, report_data) -> dict:
-        """更新周报"""
-        pass
-    
-    async def submit_report(self, report_id: str) -> dict:
-        """提交周报审核"""
-        pass
-    
-    async def review_report(self, report_id: str, review_data) -> dict:
-        """审核周报"""
-        pass
-    
-    async def export_report(self, report_id: str, format: str) -> bytes:
-        """导出周报"""
-        pass
+# 为了保持向后兼容性，在此导入并代理实现
+from app.services.report_service import WeeklyReportService as ReportService
