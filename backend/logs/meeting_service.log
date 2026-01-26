@@ -28,3 +28,8 @@
 2026-01-26 20:19:10 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
 2026-01-26 20:22:19 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
 2026-01-26 20:23:36 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-26 20:28:19 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-26 20:30:57 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-26 20:31:05 | app.services.meeting_service | INFO     | get_minutes:220 | 获取会议纪要: meeting_1769430657
+2026-01-26 20:31:52 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-26 20:32:01 | app.services.meeting_service | INFO     | get_minutes:220 | 获取会议纪要: meeting_1769430712

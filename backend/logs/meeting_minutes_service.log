@@ -254,3 +254,45 @@ NameError: name 'asyncio' is not defined. Did you forget to import 'asyncio'?
 2026-01-26 20:23:44 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:446 | Markdown纪要已生成: ./uploads\meeting_1769430216_minutes.md
 2026-01-26 20:23:44 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:472 | JSON纪要已生成: ./uploads\meeting_1769430216_minutes.json
 2026-01-26 20:23:44 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:196 | [task_meeting_1769430216_1769430216] 步骤4: 纪要生成完成，任务完成
+2026-01-26 20:28:19 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:62 | 文件保存成功: ./uploads\meeting_1769430499_20260126_202819_test.mp4
+2026-01-26 20:28:19 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:108 | 转录任务已启动: task_meeting_1769430499_1769430499
+2026-01-26 20:28:21 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:139 | [task_meeting_1769430499_1769430499] 步骤1: 转录完成
+2026-01-26 20:28:23 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:149 | [task_meeting_1769430499_1769430499] 步骤2: NLP分析完成
+2026-01-26 20:28:23 | app.services.meeting_minutes_service | INFO     | process_transcription:261 | 开始处理转录文本: meeting_1769430499
+2026-01-26 20:28:23 | app.services.meeting_minutes_service | INFO     | process_transcription:266 | 文本分句完成: 21句
+2026-01-26 20:28:23 | app.services.meeting_minutes_service | INFO     | process_transcription:270 | 关键词提取完成: 0个
+2026-01-26 20:28:23 | app.services.meeting_minutes_service | INFO     | process_transcription:274 | 关键句提取完成: 10句
+2026-01-26 20:28:23 | app.services.meeting_minutes_service | INFO     | process_transcription:278 | 实体识别完成: {'persons': [], 'organizations': [], 'locations': [], 'dates': [], 'times': []}
+2026-01-26 20:28:23 | app.services.meeting_minutes_service | INFO     | process_transcription:282 | 话题划分完成: 0个话题
+2026-01-26 20:28:25 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:159 | [task_meeting_1769430499_1769430499] 步骤3: 关键信息提取完成
+2026-01-26 20:28:27 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:446 | Markdown纪要已生成: ./uploads\meeting_1769430499_minutes.md
+2026-01-26 20:28:27 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:472 | JSON纪要已生成: ./uploads\meeting_1769430499_minutes.json
+2026-01-26 20:28:27 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:196 | [task_meeting_1769430499_1769430499] 步骤4: 纪要生成完成，任务完成
+2026-01-26 20:30:57 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:62 | 文件保存成功: ./uploads\meeting_1769430657_20260126_203057_test.mp4
+2026-01-26 20:30:57 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:108 | 转录任务已启动: task_meeting_1769430657_1769430657
+2026-01-26 20:30:59 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:139 | [task_meeting_1769430657_1769430657] 步骤1: 转录完成
+2026-01-26 20:31:01 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:149 | [task_meeting_1769430657_1769430657] 步骤2: NLP分析完成
+2026-01-26 20:31:01 | app.services.meeting_minutes_service | INFO     | process_transcription:261 | 开始处理转录文本: meeting_1769430657
+2026-01-26 20:31:01 | app.services.meeting_minutes_service | INFO     | process_transcription:266 | 文本分句完成: 21句
+2026-01-26 20:31:01 | app.services.meeting_minutes_service | INFO     | process_transcription:270 | 关键词提取完成: 0个
+2026-01-26 20:31:01 | app.services.meeting_minutes_service | INFO     | process_transcription:274 | 关键句提取完成: 10句
+2026-01-26 20:31:01 | app.services.meeting_minutes_service | INFO     | process_transcription:278 | 实体识别完成: {'persons': [], 'organizations': [], 'locations': [], 'dates': [], 'times': []}
+2026-01-26 20:31:01 | app.services.meeting_minutes_service | INFO     | process_transcription:282 | 话题划分完成: 0个话题
+2026-01-26 20:31:03 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:159 | [task_meeting_1769430657_1769430657] 步骤3: 关键信息提取完成
+2026-01-26 20:31:05 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:446 | Markdown纪要已生成: ./uploads\meeting_1769430657_minutes.md
+2026-01-26 20:31:05 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:472 | JSON纪要已生成: ./uploads\meeting_1769430657_minutes.json
+2026-01-26 20:31:05 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:196 | [task_meeting_1769430657_1769430657] 步骤4: 纪要生成完成，任务完成
+2026-01-26 20:31:52 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:62 | 文件保存成功: ./uploads\meeting_1769430712_20260126_203152_test.mp4
+2026-01-26 20:31:52 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:108 | 转录任务已启动: task_meeting_1769430712_1769430712
+2026-01-26 20:31:54 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:139 | [task_meeting_1769430712_1769430712] 步骤1: 转录完成
+2026-01-26 20:31:56 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:149 | [task_meeting_1769430712_1769430712] 步骤2: NLP分析完成
+2026-01-26 20:31:56 | app.services.meeting_minutes_service | INFO     | process_transcription:261 | 开始处理转录文本: meeting_1769430712
+2026-01-26 20:31:56 | app.services.meeting_minutes_service | INFO     | process_transcription:266 | 文本分句完成: 21句
+2026-01-26 20:31:56 | app.services.meeting_minutes_service | INFO     | process_transcription:270 | 关键词提取完成: 0个
+2026-01-26 20:31:56 | app.services.meeting_minutes_service | INFO     | process_transcription:274 | 关键句提取完成: 10句
+2026-01-26 20:31:56 | app.services.meeting_minutes_service | INFO     | process_transcription:278 | 实体识别完成: {'persons': [], 'organizations': [], 'locations': [], 'dates': [], 'times': []}
+2026-01-26 20:31:56 | app.services.meeting_minutes_service | INFO     | process_transcription:282 | 话题划分完成: 0个话题
+2026-01-26 20:31:58 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:159 | [task_meeting_1769430712_1769430712] 步骤3: 关键信息提取完成
+2026-01-26 20:32:00 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:446 | Markdown纪要已生成: ./uploads\meeting_1769430712_minutes.md
+2026-01-26 20:32:00 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:472 | JSON纪要已生成: ./uploads\meeting_1769430712_minutes.json
+2026-01-26 20:32:00 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:196 | [task_meeting_1769430712_1769430712] 步骤4: 纪要生成完成，任务完成
