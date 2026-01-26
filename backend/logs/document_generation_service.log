@@ -1,3 +1,0 @@
-2026-01-25 15:05:39 | app.services.document_generation_service | ERROR    | generate_pdf:236 | reportlab 未安装，请运行: pip install reportlab
-2026-01-25 15:07:24 | app.services.document_generation_service | ERROR    | generate_pdf:236 | reportlab 未安装，请运行: pip install reportlab
-2026-01-25 15:07:24 | app.services.document_generation_service | ERROR    | generate_docx:330 | Word文档生成失败: [Errno 2] No such file or directory: '/tmp/meeting_minutes.docx'
