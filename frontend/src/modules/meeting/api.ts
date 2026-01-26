@@ -55,3 +55,19 @@ export async function fetchTaskStatus(taskId: string) {
 
   return response.json();
 }
+
+export async function fetchMeetingMinutes(meetingId: string) {
+  const response = await fetch(
+    `${API_BASE}/api/v1/meetings/${meetingId}/minutes`,
+  );
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    console.error("Fetch minutes error:", errorData);
+    throw new Error(
+      `获取会议纪要失败: ${response.status} ${response.statusText}`,
+    );
+  }
+
+  return response.json();
+}

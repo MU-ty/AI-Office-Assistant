@@ -217,13 +217,8 @@ class MeetingService:
         Returns:
             会议纪要
         """
-        try:
-            logger.info(f"获取会议纪要: {meeting_id}")
-            # TODO: 从数据库获取已生成的纪要
-            return {}
-        except Exception as e:
-            logger.error(f"获取纪要失败: {e}")
-            return {"error": str(e)}
+        logger.info(f"获取会议纪要: {meeting_id}")
+        return await self.minutes_service.get_minutes_by_meeting(meeting_id)
     
     async def generate_minutes(
         self,

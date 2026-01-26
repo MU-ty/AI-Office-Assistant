@@ -21,6 +21,8 @@ logger = get_logger(__name__)
 
 # 简易任务状态存储，方便前端轮询。生产环境请替换为持久化/队列。
 TASK_STATE: Dict[str, dict] = {}
+# 纪要结果存储（内存版）。生产环境请替换为数据库持久化。
+MINUTES_STORE: Dict[str, dict] = {}
 
 
 class MeetingMinutesService:
@@ -171,12 +173,25 @@ class MeetingMinutesService:
                 formats=["markdown", "json"]
             )
 
+            summary_text = self._generate_summary(nlp_result)
+            minutes_markdown = generate_result.get("formats", {}).get("markdown", {}).get("content")
+
+            # 存储纪要结果，便于后续查询
+            self._store_minutes_result(
+                meeting_id=meeting_id,
+                title=meeting_data.get("title"),
+                summary=summary_text,
+                minutes=minutes_markdown,
+                formats=generate_result.get("formats", {})
+            )
+
             TASK_STATE[task_id]["step"] = 4
             TASK_STATE[task_id]["is_completed"] = True
             TASK_STATE[task_id]["status"] = "completed"
-            TASK_STATE[task_id]["minutes"] = generate_result.get("formats", {}).get("markdown", {}).get("content")
-            TASK_STATE[task_id]["summary"] = self._generate_summary(nlp_result)
+            TASK_STATE[task_id]["minutes"] = minutes_markdown
+            TASK_STATE[task_id]["summary"] = summary_text
             TASK_STATE[task_id]["content"] = "✓ 会议纪要已生成！"
+            TASK_STATE[task_id]["updated_at"] = datetime.now(timezone.utc)
 
             logger.info(f"[{task_id}] 步骤4: 纪要生成完成，任务完成")
 
@@ -306,6 +321,48 @@ Action Items：
             "summary": state.get("summary"),  # 纪要摘要
             "minutes": state.get("minutes"),  # 完整纪要
         }
+
+    async def get_minutes_by_meeting(self, meeting_id: str) -> Dict:
+        """按会议ID获取已生成的纪要（内存存储版）"""
+        record = MINUTES_STORE.get(meeting_id)
+        if record:
+            return record
+
+        # 兼容：如果还没落盘但任务状态里有结果，则从 TASK_STATE 构造
+        for state in TASK_STATE.values():
+            if state.get("meeting_id") == meeting_id and state.get("minutes"):
+                return {
+                    "meeting_id": meeting_id,
+                    "title": state.get("title"),
+                    "summary": state.get("summary"),
+                    "minutes": state.get("minutes"),
+                    "content": state.get("content"),
+                    "generated_at": state.get("updated_at") or state.get("created_at"),
+                    "formats": {},
+                }
+
+        raise HTTPException(status_code=404, detail="minutes_not_found")
+
+    def _store_minutes_result(
+        self,
+        meeting_id: str,
+        title: Optional[str],
+        summary: Optional[str],
+        minutes: Optional[str],
+        formats: Dict
+    ) -> Dict:
+        """将纪要结果保存到内存存储，便于后端/前端查询"""
+        record = {
+            "meeting_id": meeting_id,
+            "title": title or f"会议纪要 - {meeting_id}",
+            "summary": summary,
+            "minutes": minutes,
+            "content": "✓ 会议纪要已生成！",
+            "formats": formats,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        MINUTES_STORE[meeting_id] = record
+        return record
     
     async def _identify_topics(self, text: str) -> List[str]:
         """

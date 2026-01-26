@@ -1,5 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-import { createMeeting, uploadMeetingAudio, fetchTaskStatus } from "../api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  createMeeting,
+  uploadMeetingAudio,
+  fetchTaskStatus,
+  fetchMeetingMinutes,
+} from "../api";
+import {
+  minutesToMessages,
+  ChatMessage,
+} from "@/modules/meeting/utils/minutesToMessages";
 
 export interface TaskStatus {
   task_id: string;
@@ -12,13 +21,27 @@ export interface TaskStatus {
   minutes?: string;
 }
 
-export function useMeeting() {
+export interface MeetingMinutesRecord {
+  meeting_id: string;
+  title?: string;
+  summary?: string;
+  minutes?: string;
+  content?: string;
+  generated_at?: string;
+  formats?: Record<string, unknown>;
+}
+
+type UiMessage = ChatMessage & { label?: string };
+
+export function useMeeting(initialMeetingId?: string) {
   const [currentStep, setCurrentStep] = useState(0);
   const [content, setContent] = useState("");
   const [minutes, setMinutes] = useState(""); // 完整纪要
   const [summary, setSummary] = useState(""); // 执行摘要
   const [isStarted, setIsStarted] = useState(false);
+  const [meetingId, setMeetingId] = useState(initialMeetingId || "");
   const [taskId, setTaskId] = useState<string>("");
+  const hasLoadedInitialRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 1. 先声明状态获取函数
@@ -43,6 +66,7 @@ export function useMeeting() {
     setContent("");
     setMinutes("");
     setSummary("");
+    setMeetingId("");
 
     try {
       const meetingPayload = {
@@ -56,6 +80,8 @@ export function useMeeting() {
       if (!meetingId) {
         throw new Error("未获取到会议ID");
       }
+
+      setMeetingId(meetingId);
 
       const uploadResp = await uploadMeetingAudio(meetingId, file);
       const newTaskId = uploadResp.task_id || uploadResp.transcription_task_id;
@@ -93,7 +119,56 @@ export function useMeeting() {
     }
   };
 
+  const loadExistingMinutes = async (targetMeetingId: string) => {
+    if (!targetMeetingId) return;
+    try {
+      setIsStarted(true);
+      setContent("正在加载会议纪要...");
+      const data: MeetingMinutesRecord =
+        await fetchMeetingMinutes(targetMeetingId);
+
+      setMeetingId(targetMeetingId);
+      if (data.content) setContent(data.content);
+      if (data.summary) setSummary(data.summary);
+      if (data.minutes) setMinutes(data.minutes);
+      setCurrentStep(4);
+    } catch (error) {
+      console.error("加载会议纪要失败:", error);
+    } finally {
+      setIsStarted(false);
+    }
+  };
+
+  // 汇总为聊天消息列表
+  const messages = useMemo<UiMessage[]>(() => {
+    const list: UiMessage[] = [];
+
+    if (content) {
+      list.push({ id: "progress", role: "assistant", content, label: "进度" });
+    }
+
+    if (summary) {
+      list.push({
+        id: "summary",
+        role: "assistant",
+        content: summary,
+        label: "执行摘要",
+      });
+    }
+
+    if (minutes) {
+      list.push(...minutesToMessages(minutes));
+    }
+
+    return list;
+  }, [content, summary, minutes]);
+
   useEffect(() => {
+    if (initialMeetingId && !hasLoadedInitialRef.current) {
+      hasLoadedInitialRef.current = true;
+      loadExistingMinutes(initialMeetingId);
+    }
+
     return () => {
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
@@ -110,5 +185,8 @@ export function useMeeting() {
     minutes,
     summary,
     taskId,
+    meetingId,
+    loadExistingMinutes,
+    messages,
   };
 }

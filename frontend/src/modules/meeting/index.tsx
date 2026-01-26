@@ -5,11 +5,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { FileAudio, Loader2, Wand2, Send } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { useSearchParams } from "next/navigation";
 import { useMeeting } from "./hooks/useMeeting";
 import { MeetingStepper } from "./components/Stepper";
 import { UploadButton } from "./components/Uploader";
 
 export default function MeetingModule() {
+  const searchParams = useSearchParams();
+  const meetingIdFromUrl = searchParams.get("meetingId") || undefined;
   const {
     steps,
     content,
@@ -18,7 +21,8 @@ export default function MeetingModule() {
     currentStep,
     minutes,
     summary,
-  } = useMeeting();
+    messages,
+  } = useMeeting(meetingIdFromUrl);
 
   return (
     <div className="flex-1 flex gap-0 overflow-hidden w-full h-full border border-slate-200 rounded-lg shadow-lg">
@@ -140,59 +144,46 @@ export default function MeetingModule() {
                   </div>
                 </div>
 
-                {/* AI 响应 */}
-                <div className="flex justify-start">
-                  <div className="max-w-[95%]">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                        <Wand2 className="w-4 h-4 text-white" />
-                      </div>
-                      <span className="text-xs font-medium text-slate-600">
-                        AI 助手
-                      </span>
-                    </div>
-                    <div className="bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-3">
-                      {currentStep < 4 && !minutes ? (
-                        <div className="flex items-center gap-2 text-slate-600">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span className="text-sm">正在分析会议内容...</span>
-                        </div>
-                      ) : (
-                        <div className="prose prose-slate max-w-none text-sm">
-                          {/* 显示处理进度 */}
-                          {content && (
-                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
-                              <ReactMarkdown>{content}</ReactMarkdown>
-                            </div>
-                          )}
-
-                          {/* 显示执行摘要 */}
-                          {summary && (
-                            <div className="mb-4">
-                              <ReactMarkdown>{summary}</ReactMarkdown>
-                            </div>
-                          )}
-
-                          {/* 显示完整纪要 */}
-                          {minutes ? (
-                            <div className="space-y-4">
-                              <div className="border-l-4 border-blue-500 pl-4">
-                                <h4 className="font-semibold text-slate-800 mb-2">
-                                  会议纪要
-                                </h4>
-                                <ReactMarkdown>{minutes}</ReactMarkdown>
-                              </div>
-                            </div>
-                          ) : currentStep === 4 ? (
-                            <div className="text-slate-600 text-center py-8">
-                              <p>✓ 纪要生成中...</p>
-                            </div>
-                          ) : null}
-                        </div>
-                      )}
+                {/* AI 响应（聊天气泡呈现） */}
+                {currentStep < 4 && messages.length === 0 ? (
+                  <div className="flex justify-start">
+                    <div className="max-w-[95%] bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-2 text-slate-600">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">正在分析会议内容...</span>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-3">
+                    {messages.map((msg, idx) => {
+                      const label = msg.section || msg.label || "会议纪要";
+                      return (
+                        <div className="flex justify-start" key={msg.id}>
+                          <div className="max-w-[95%]">
+                            {idx === 0 && (
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                                  <Wand2 className="w-4 h-4 text-white" />
+                                </div>
+                                <span className="text-xs font-medium text-slate-600">
+                                  AI 助手
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                              <div className="text-[11px] font-semibold text-slate-500 mb-1">
+                                {label}
+                              </div>
+                              <div className="prose prose-slate max-w-none text-sm">
+                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </>
             )}
           </div>
