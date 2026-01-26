@@ -79,6 +79,16 @@ class ShareRequest(BaseModel):
     share_targets: dict = Field(..., description="分享目标（邮件、企业微信、钉钉等）")
 
 
+class TaskStatusResponse(BaseModel):
+    """任务状态响应"""
+    task_id: str
+    meeting_id: str
+    step: int
+    is_completed: bool
+    content: Optional[str] = None
+    status: Optional[str] = None
+
+
 # ============================================================
 # 基础CRUD端点
 # ============================================================
@@ -167,6 +177,16 @@ async def upload_meeting_media(
     """
     service = MeetingService(db)
     return await service.upload_media(meeting_id, file)
+
+
+@router.get("/tasks/{task_id}", response_model=TaskStatusResponse)
+async def get_task_status(
+    task_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """查询任务状态，供前端轮询展示流程进度"""
+    service = MeetingService(db)
+    return await service.get_task_status(task_id)
 
 
 @router.post("/{meeting_id}/transcribe", response_model=dict)

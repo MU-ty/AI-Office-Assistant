@@ -1,51 +1,272 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  createMeeting,
+  uploadMeetingAudio,
+  fetchTaskStatus,
+  fetchMeetingMinutes,
+} from "../api";
+import { pollTaskStatusForMinutes } from "../api/streaming";
+import { diagnosticPoll } from "../api/diagnostic";
+import {
+  minutesToMessages,
+  ChatMessage,
+} from "@/modules/meeting/utils/minutesToMessages";
+import {
+  convertMinutesJSONToMarkdown,
+  generateSummary,
+  MeetingMinutesJSON,
+} from "@/modules/meeting/utils/minutesConverter";
 
-type StepStatus = "waiting" | "loading" | "completed";
+export interface TaskStatus {
+  task_id: string;
+  meeting_id: string;
+  step: number;
+  is_completed: boolean;
+  content: string;
+  status: string;
+  summary?: string;
+  minutes?: string;
+}
 
-export function useMeeting() {
+export interface MeetingMinutesRecord {
+  meeting_id: string;
+  title?: string;
+  summary?: string;
+  minutes?: string;
+  content?: string;
+  generated_at?: string;
+  formats?: Record<string, unknown>;
+}
+
+export interface MeetingData {
+  id: string;
+  title: string;
+  meeting_type?: string;
+  start_time?: string;
+  location?: string;
+  created_at?: string;
+}
+
+type UiMessage = ChatMessage & { label?: string };
+
+export function useMeeting(initialMeetingId?: string) {
   const [currentStep, setCurrentStep] = useState(0);
   const [content, setContent] = useState("");
+  const [minutes, setMinutes] = useState(""); // 完整纪要
+  const [summary, setSummary] = useState(""); // 执行摘要
   const [isStarted, setIsStarted] = useState(false);
+  const [meetingId, setMeetingId] = useState(initialMeetingId || "");
+  const [meetingTitle, setMeetingTitle] = useState(""); // 新增：会议标题
+  const [generatedAt, setGeneratedAt] = useState<string>(""); // 新增：生成时间
+  const [taskId, setTaskId] = useState<string>("");
+  const hasLoadedInitialRef = useRef(false);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopPollingRef = useRef<(() => void) | null>(null);
 
-  function getStatus(index: number): StepStatus {
-    if (currentStep > index) return "completed";
-    if (currentStep === index && isStarted) return "loading";
-    return "waiting";
+  // 1. 先声明状态获取函数
+  function getStatus(index: number) {
+    if (currentStep > index) return "completed" as const;
+    if (currentStep === index && isStarted) return "loading" as const;
+    return "waiting" as const;
   }
 
+  // 2. 再声明依赖该函数的 steps 数组
+  // 这样每次组件重新渲染时，steps 都会根据最新的 currentStep 重新生成
   const steps = [
-    { id: "1", label: "音视频切片转录 (2.1.1)", status: getStatus(0) },
-    { id: "2", label: "语义角色标注 (2.1.2)", status: getStatus(1) },
-    { id: "3", label: "核心议程提取 (2.1.3)", status: getStatus(2) },
-    { id: "4", label: "生成纪要文档 (2.1.4)", status: getStatus(3) },
+    { id: "1", label: "音视频切片转录 ", status: getStatus(0) },
+    { id: "2", label: "语义角色标注", status: getStatus(1) },
+    { id: "3", label: "核心议程提取", status: getStatus(2) },
+    { id: "4", label: "生成纪要文档", status: getStatus(3) },
   ];
 
-  const startWorkflow = async () => {
+  const startWorkflow = async (file: File) => {
     setIsStarted(true);
+    setCurrentStep(0);
+    setContent("");
+    setMinutes("");
+    setSummary("");
+    setMeetingId("");
+    setMeetingTitle(""); // 重置标题
+    setGeneratedAt(""); // 重置生成时间
 
-    // 模拟每一步的耗时
-    for (let i = 0; i < 3; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      setCurrentStep((prev) => prev + 1);
+    try {
+      const meetingPayload = {
+        title: file.name,
+        meeting_type: "audio",
+        start_time: new Date().toISOString(),
+      };
+
+      const meeting = await createMeeting(meetingPayload);
+      const meetingId = meeting.id || meeting.meeting_id;
+      if (!meetingId) {
+        throw new Error("未获取到会议ID");
+      }
+
+      setMeetingId(meetingId);
+      setMeetingTitle(meeting.title || file.name); // 保存会议标题
+
+      const uploadResp = await uploadMeetingAudio(meetingId, file);
+      const newTaskId = uploadResp.task_id || uploadResp.transcription_task_id;
+      if (!newTaskId) {
+        throw new Error("未获取到任务ID");
+      }
+
+      setTaskId(newTaskId);
+
+      console.log("🚀 开始轮询任务:", newTaskId);
+
+      // 使用诊断轮询（临时）
+      if (stopPollingRef.current) {
+        stopPollingRef.current();
+      }
+
+      stopPollingRef.current = await diagnosticPoll(
+        newTaskId,
+        (status) => {
+          // 更新所有字段
+          if (status.step !== undefined) {
+            setCurrentStep(Math.min(status.step, 4));
+          }
+          if (status.content) {
+            setContent(status.content);
+          }
+          if (status.summary) {
+            setSummary(status.summary);
+          }
+          if (status.minutes) {
+            setMinutes(status.minutes);
+          }
+        },
+        async () => {
+          // 任务完成后，调用纪要接口获取完整数据
+          console.log("✅ 诊断轮询完成，开始获取完整纪要");
+          setCurrentStep(4);
+
+          try {
+            const minutesData = await fetchMeetingMinutes(meetingId);
+            console.log("📄 收到完整纪要数据:", minutesData);
+
+            // 检查数据格式并转换
+            if (minutesData.paragraphs || minutesData.sentences) {
+              // JSON 格式，需要转换为 Markdown
+              console.log("🔄 检测到 JSON 格式，转换为 Markdown");
+              const markdown = convertMinutesJSONToMarkdown(
+                minutesData as MeetingMinutesJSON,
+              );
+              const summary = generateSummary(
+                minutesData as MeetingMinutesJSON,
+              );
+
+              setMinutes(markdown);
+              setSummary(summary);
+            } else if (minutesData.minutes) {
+              // 已经是 Markdown 格式
+              console.log("📝 检测到 Markdown 格式");
+              setMinutes(minutesData.minutes);
+              if (minutesData.summary) {
+                setSummary(minutesData.summary);
+              }
+            }
+
+            if (minutesData.content) {
+              setContent(minutesData.content);
+            }
+            if (minutesData.generated_at) {
+              setGeneratedAt(minutesData.generated_at);
+            } else {
+              setGeneratedAt(new Date().toISOString());
+            }
+          } catch (error) {
+            console.error("❌ 获取完整纪要失败:", error);
+          }
+        },
+        (error) => {
+          console.error("❌ 诊断轮询错误:", error);
+          setIsStarted(false);
+        },
+        1000, // 1 秒轮询一次
+      );
+    } catch (error) {
+      console.error("启动失败:", error);
+      setIsStarted(false);
+    }
+  };
+
+  const loadExistingMinutes = async (targetMeetingId: string) => {
+    if (!targetMeetingId) return;
+    try {
+      setIsStarted(true);
+      setContent("正在加载会议纪要...");
+      const data: MeetingMinutesRecord =
+        await fetchMeetingMinutes(targetMeetingId);
+
+      setMeetingId(targetMeetingId);
+      if (data.title) setMeetingTitle(data.title);
+      if (data.content) setContent(data.content);
+      if (data.summary) setSummary(data.summary);
+      if (data.minutes) setMinutes(data.minutes);
+      if (data.generated_at) setGeneratedAt(data.generated_at);
+      setCurrentStep(4);
+    } catch (error) {
+      console.error("加载会议纪要失败:", error);
+    } finally {
+      setIsStarted(false);
+    }
+  };
+
+  // 汇总为聊天消息列表
+  const messages = useMemo<UiMessage[]>(() => {
+    const list: UiMessage[] = [];
+
+    if (content) {
+      list.push({ id: "progress", role: "assistant", content, label: "进度" });
     }
 
-    // 最后一步开始流式出字
-    simulateStreaming();
-  };
+    if (summary) {
+      list.push({
+        id: "summary",
+        role: "assistant",
+        content: summary,
+        label: "执行摘要",
+      });
+    }
 
-  const simulateStreaming = () => {
-    const text =
-      "# 会议纪要\n\n- **时间**: 2026-01-25\n- **结论**: 架构迁移完成...";
-    let j = 0;
-    const timer = setInterval(() => {
-      setContent((prev) => prev + text[j]);
-      j++;
-      if (j >= text.length - 1) {
-        clearInterval(timer);
-        setCurrentStep(4); // 全部完成
+    if (minutes) {
+      list.push(...minutesToMessages(minutes));
+    }
+
+    return list;
+  }, [content, summary, minutes]);
+
+  useEffect(() => {
+    if (initialMeetingId && !hasLoadedInitialRef.current) {
+      hasLoadedInitialRef.current = true;
+      loadExistingMinutes(initialMeetingId);
+    }
+
+    return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
       }
-    }, 30);
-  };
+      if (stopPollingRef.current) {
+        stopPollingRef.current();
+      }
+    };
+  }, []);
 
-  return { steps, content, startWorkflow, isStarted, currentStep };
+  return {
+    steps,
+    content,
+    startWorkflow,
+    isStarted,
+    currentStep,
+    minutes,
+    summary,
+    taskId,
+    meetingId,
+    meetingTitle,
+    generatedAt,
+    loadExistingMinutes,
+    messages,
+  };
 }

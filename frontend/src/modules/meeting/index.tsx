@@ -5,12 +5,28 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { FileAudio, Loader2, Wand2, Send } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { useSearchParams } from "next/navigation";
 import { useMeeting } from "./hooks/useMeeting";
 import { MeetingStepper } from "./components/Stepper";
+import { UploadButton } from "./components/Uploader";
+import { MarkdownViewer } from "./components/MarkdownViewer";
 
 export default function MeetingModule() {
-  const { steps, content, startWorkflow, isStarted, currentStep } =
-    useMeeting();
+  const searchParams = useSearchParams();
+  const meetingIdFromUrl = searchParams.get("meetingId") || undefined;
+  const {
+    steps,
+    content,
+    startWorkflow,
+    isStarted,
+    currentStep,
+    minutes,
+    summary,
+    messages,
+    meetingId,
+    meetingTitle,
+    generatedAt,
+  } = useMeeting(meetingIdFromUrl);
 
   return (
     <div className="flex-1 flex gap-0 overflow-hidden w-full h-full border border-slate-200 rounded-lg shadow-lg">
@@ -27,6 +43,16 @@ export default function MeetingModule() {
               <p className="text-xs text-slate-500">工作流执行面板</p>
             </div>
           </div>
+
+          {/* 条件渲染：只在处理完成后显示上传按钮 */}
+          {isStarted && currentStep === 4 && (
+            <div className="mt-4">
+              <UploadButton
+                onFileSelect={(file) => startWorkflow(file)}
+                isStarted={false} // 完成状态下按钮不禁用
+              />
+            </div>
+          )}
         </div>
 
         {/* 工作流步骤 */}
@@ -81,17 +107,23 @@ export default function MeetingModule() {
               上传音频文件，AI 自动生成会议纪要
             </p>
           </div>
-          {isStarted && currentStep === 4 && (
-            <Button variant="outline" size="sm">
-              导出纪要
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {/* 查看完整纪要按钮 */}
+            {currentStep === 4 && minutes && (
+              <MarkdownViewer
+                content={minutes}
+                title={meetingTitle || "会议纪要"}
+                meetingId={meetingId}
+                generatedAt={generatedAt}
+              />
+            )}
+          </div>
         </div>
 
         {/* 聊天消息区域 */}
         <ScrollArea className="flex-1 p-6">
           <div className="max-w-6xl mx-auto space-y-4">
-            {!isStarted ? (
+            {!isStarted && !minutes && !summary && !content ? (
               /* 初始状态 - 上传提示 */
               <div className="flex flex-col items-center justify-center py-20">
                 <div className="w-full max-w-md">
@@ -106,13 +138,10 @@ export default function MeetingModule() {
                       上传会议音频，AI 将自动进行转录、分析并生成结构化纪要
                     </p>
                   </div>
-                  <Button
-                    onClick={startWorkflow}
-                    className="w-full h-12 text-base"
-                  >
-                    <FileAudio className="w-5 h-5 mr-2" />
-                    上传会议音频并开始分析
-                  </Button>
+                  <UploadButton
+                    onFileSelect={(file) => startWorkflow(file)}
+                    isStarted={isStarted}
+                  />
                 </div>
               </div>
             ) : (
@@ -125,50 +154,121 @@ export default function MeetingModule() {
                   </div>
                 </div>
 
-                {/* AI 响应 */}
-                <div className="flex justify-start">
-                  <div className="max-w-[95%]">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                        <Wand2 className="w-4 h-4 text-white" />
+                {/* AI 响应 - 进度 & 实时纪要 */}
+                <div className="space-y-3">
+                  {/* 处理进度 */}
+                  {content && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[95%]">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                            <Wand2 className="w-4 h-4 text-white" />
+                          </div>
+                          <span className="text-xs font-medium text-slate-600">
+                            AI 助手
+                          </span>
+                        </div>
+                        <div className="bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                          <div className="text-[11px] font-semibold text-slate-500 mb-1">
+                            处理进度
+                          </div>
+                          <div className="prose prose-slate max-w-none text-sm text-slate-700">
+                            {content}
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-xs font-medium text-slate-600">
-                        AI 助手
-                      </span>
                     </div>
-                    <div className="bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-3">
-                      {currentStep < 4 && !content ? (
-                        <div className="flex items-center gap-2 text-slate-600">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span className="text-sm">正在分析会议内容...</span>
+                  )}
+
+                  {/* 执行摘要 */}
+                  {summary && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[95%]">
+                        <div className="bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                          <div className="text-[11px] font-semibold text-slate-500 mb-1">
+                            执行摘要
+                          </div>
+                          <div className="prose prose-slate max-w-none text-sm">
+                            <ReactMarkdown>{summary}</ReactMarkdown>
+                          </div>
                         </div>
-                      ) : (
-                        <div className="prose prose-slate max-w-none">
-                          <ReactMarkdown>{content}</ReactMarkdown>
-                        </div>
-                      )}
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* 实时纪要 - 流式显示 */}
+                  {minutes && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[95%]">
+                        <div className="bg-blue-50 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-blue-200">
+                          <div className="text-[11px] font-semibold text-blue-600 mb-2 flex items-center gap-1">
+                            📝 实时纪要
+                            {isStarted && currentStep < 4 && (
+                              <span className="inline-flex">
+                                <span className="animate-pulse text-xs">•</span>
+                                <span
+                                  className="animate-pulse text-xs"
+                                  style={{ animationDelay: "0.2s" }}
+                                >
+                                  •
+                                </span>
+                                <span
+                                  className="animate-pulse text-xs"
+                                  style={{ animationDelay: "0.4s" }}
+                                >
+                                  •
+                                </span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="prose prose-slate max-w-none text-sm max-h-64 overflow-y-auto">
+                            <ReactMarkdown>{minutes}</ReactMarkdown>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Loading 提示 - 当还没有数据时 */}
+                  {!content && !summary && !minutes && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[95%] bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-2 text-slate-600">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">正在分析会议内容...</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}
           </div>
         </ScrollArea>
 
-        {/* 底部输入区（可选，目前不可用） */}
-        {isStarted && (
-          <div className="h-20 border-t border-slate-200 flex items-center px-6">
-            <div className="flex-1 flex items-center gap-3">
-              <input
-                type="text"
-                placeholder="可以向 AI 提问关于会议的问题..."
-                disabled
-                className="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400"
-              />
-              <Button disabled size="sm" className="px-6">
-                <Send className="w-4 h-4" />
-              </Button>
-            </div>
+        {/* 底部输入区 */}
+        {currentStep === 4 && minutes && (
+          <div className="h-auto border-t border-slate-200 bg-slate-50 p-4 flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const element = document.createElement("a");
+                element.setAttribute(
+                  "href",
+                  "data:text/markdown;charset=utf-8," +
+                    encodeURIComponent(minutes),
+                );
+                element.setAttribute("download", "meeting_minutes.md");
+                element.style.display = "none";
+                document.body.appendChild(element);
+                element.click();
+                document.body.removeChild(element);
+              }}
+            >
+              ↓ 下载 Markdown
+            </Button>
+            <Button variant="outline" size="sm">
+              分享纪要
+            </Button>
           </div>
         )}
       </div>

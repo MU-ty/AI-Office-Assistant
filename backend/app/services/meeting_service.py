@@ -6,9 +6,13 @@
 from typing import List, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import UploadFile
+from datetime import datetime
 
 from app.utils.logger import get_logger
 from app.services.meeting_minutes_service import MeetingMinutesService
+
+# 简易的内存存储，便于跑通流程。生产环境请替换为数据库持久化。
+MEETING_STORE: Dict[str, dict] = {}
 
 logger = get_logger(__name__)
 
@@ -32,12 +36,14 @@ class MeetingService:
         """
         try:
             logger.info(f"创建会议: {meeting_data.get('title')}")
-            # TODO: 保存到数据库
-            return {
-                "id": "meeting_001",
+            meeting_id = meeting_data.get("id") or f"meeting_{int(datetime.now().timestamp())}"
+            meeting = {
+                "id": meeting_id,
                 "status": "created",
-                **meeting_data
+                **meeting_data,
             }
+            MEETING_STORE[meeting_id] = meeting
+            return meeting
         except Exception as e:
             logger.error(f"创建会议失败: {e}")
             return {"error": str(e)}
@@ -55,9 +61,11 @@ class MeetingService:
             会议列表
         """
         try:
-            # TODO: 从数据库查询
             logger.info(f"查询会议列表: skip={skip}, limit={limit}, status={status}")
-            return []
+            meetings = list(MEETING_STORE.values())
+            if status:
+                meetings = [m for m in meetings if m.get("status") == status]
+            return meetings[skip: skip + limit]
         except Exception as e:
             logger.error(f"查询会议列表失败: {e}")
             return []
@@ -74,8 +82,7 @@ class MeetingService:
         """
         try:
             logger.info(f"获取会议详情: {meeting_id}")
-            # TODO: 从数据库查询
-            return {}
+            return MEETING_STORE.get(meeting_id, {"error": "meeting_not_found"})
         except Exception as e:
             logger.error(f"获取会议详情失败: {e}")
             return {"error": str(e)}
@@ -93,8 +100,10 @@ class MeetingService:
         """
         try:
             logger.info(f"更新会议: {meeting_id}")
-            # TODO: 更新到数据库
-            return {"id": meeting_id, **meeting_data}
+            if meeting_id not in MEETING_STORE:
+                return {"error": "meeting_not_found"}
+            MEETING_STORE[meeting_id].update(meeting_data)
+            return {"id": meeting_id, **MEETING_STORE[meeting_id]}
         except Exception as e:
             logger.error(f"更新会议失败: {e}")
             return {"error": str(e)}
@@ -108,7 +117,7 @@ class MeetingService:
         """
         try:
             logger.info(f"删除会议: {meeting_id}")
-            # TODO: 从数据库删除
+            MEETING_STORE.pop(meeting_id, None)
         except Exception as e:
             logger.error(f"删除会议失败: {e}")
     
@@ -151,6 +160,10 @@ class MeetingService:
         except Exception as e:
             logger.error(f"启动转录失败: {e}")
             return {"error": str(e)}
+
+    async def get_task_status(self, task_id: str) -> dict:
+        """查询任务状态，供前端轮询"""
+        return await self.minutes_service.get_task_status(task_id)
     
     # ============================================================
     # 流程图第4-9步：NLP处理
@@ -204,13 +217,8 @@ class MeetingService:
         Returns:
             会议纪要
         """
-        try:
-            logger.info(f"获取会议纪要: {meeting_id}")
-            # TODO: 从数据库获取已生成的纪要
-            return {}
-        except Exception as e:
-            logger.error(f"获取纪要失败: {e}")
-            return {"error": str(e)}
+        logger.info(f"获取会议纪要: {meeting_id}")
+        return await self.minutes_service.get_minutes_by_meeting(meeting_id)
     
     async def generate_minutes(
         self,

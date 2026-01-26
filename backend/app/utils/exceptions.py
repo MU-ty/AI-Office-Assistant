@@ -11,6 +11,12 @@ class BaseException(Exception):
         super().__init__(self.message)
 
 
+class ValidationError(BaseException):
+    """数据验证错误"""
+    def __init__(self, message: str = "数据验证失败"):
+        super().__init__(message, 400)
+
+
 class UserNotFoundError(BaseException):
     """用户不存在错误"""
     def __init__(self, message: str = "用户不存在"):
