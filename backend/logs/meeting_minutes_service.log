@@ -1,0 +1,32 @@
+2026-01-26 18:08:32 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:59 | 文件保存成功: ./uploads\meeting_1769422112_20260126_180832_test.mp4
+2026-01-26 18:08:32 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:105 | 转录任务已启动: task_meeting_1769422112_1769422112
+2026-01-26 18:08:32 | app.services.meeting_minutes_service | ERROR    | _process_full_workflow:183 | 处理流程出错 [task_meeting_1769422112_1769422112]: name 'asyncio' is not defined
+Traceback (most recent call last):
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\meeting_minutes_service.py", line 133, in _process_full_workflow
+    await asyncio.sleep(2)
+          ^^^^^^^
+NameError: name 'asyncio' is not defined. Did you forget to import 'asyncio'?
+2026-01-26 18:09:56 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:59 | 文件保存成功: ./uploads\meeting_1769422196_20260126_180956_test.mp4
+2026-01-26 18:09:56 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:105 | 转录任务已启动: task_meeting_1769422196_1769422196
+2026-01-26 18:09:56 | app.services.meeting_minutes_service | ERROR    | _process_full_workflow:183 | 处理流程出错 [task_meeting_1769422196_1769422196]: name 'asyncio' is not defined
+Traceback (most recent call last):
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\meeting_minutes_service.py", line 133, in _process_full_workflow
+    await asyncio.sleep(2)
+          ^^^^^^^
+NameError: name 'asyncio' is not defined. Did you forget to import 'asyncio'?
+2026-01-26 18:11:36 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:59 | 文件保存成功: ./uploads\meeting_1769422296_20260126_181136_test.mp4
+2026-01-26 18:11:36 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:105 | 转录任务已启动: task_meeting_1769422296_1769422296
+2026-01-26 18:11:36 | app.services.meeting_minutes_service | ERROR    | _process_full_workflow:183 | 处理流程出错 [task_meeting_1769422296_1769422296]: name 'asyncio' is not defined
+Traceback (most recent call last):
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\meeting_minutes_service.py", line 133, in _process_full_workflow
+    await asyncio.sleep(2)
+          ^^^^^^^
+NameError: name 'asyncio' is not defined. Did you forget to import 'asyncio'?
+2026-01-26 18:16:33 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:59 | 文件保存成功: ./uploads\meeting_1769422593_20260126_181633_test.mp4
+2026-01-26 18:16:33 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:105 | 转录任务已启动: task_meeting_1769422593_1769422593
+2026-01-26 18:16:33 | app.services.meeting_minutes_service | ERROR    | _process_full_workflow:183 | 处理流程出错 [task_meeting_1769422593_1769422593]: name 'asyncio' is not defined
+Traceback (most recent call last):
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\meeting_minutes_service.py", line 133, in _process_full_workflow
+    await asyncio.sleep(2)
+          ^^^^^^^
+NameError: name 'asyncio' is not defined. Did you forget to import 'asyncio'?

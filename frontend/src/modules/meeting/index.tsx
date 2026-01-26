@@ -7,10 +7,18 @@ import { FileAudio, Loader2, Wand2, Send } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useMeeting } from "./hooks/useMeeting";
 import { MeetingStepper } from "./components/Stepper";
+import { UploadButton } from "./components/Uploader";
 
 export default function MeetingModule() {
-  const { steps, content, startWorkflow, isStarted, currentStep } =
-    useMeeting();
+  const {
+    steps,
+    content,
+    startWorkflow,
+    isStarted,
+    currentStep,
+    minutes,
+    summary,
+  } = useMeeting();
 
   return (
     <div className="flex-1 flex gap-0 overflow-hidden w-full h-full border border-slate-200 rounded-lg shadow-lg">
@@ -27,6 +35,16 @@ export default function MeetingModule() {
               <p className="text-xs text-slate-500">工作流执行面板</p>
             </div>
           </div>
+
+          {/* 条件渲染：只在处理完成后显示上传按钮 */}
+          {isStarted && currentStep === 4 && (
+            <div className="mt-4">
+              <UploadButton
+                onFileSelect={(file) => startWorkflow(file)}
+                isStarted={false} // 完成状态下按钮不禁用
+              />
+            </div>
+          )}
         </div>
 
         {/* 工作流步骤 */}
@@ -106,13 +124,10 @@ export default function MeetingModule() {
                       上传会议音频，AI 将自动进行转录、分析并生成结构化纪要
                     </p>
                   </div>
-                  <Button
-                    onClick={startWorkflow}
-                    className="w-full h-12 text-base"
-                  >
-                    <FileAudio className="w-5 h-5 mr-2" />
-                    上传会议音频并开始分析
-                  </Button>
+                  <UploadButton
+                    onFileSelect={(file) => startWorkflow(file)}
+                    isStarted={isStarted}
+                  />
                 </div>
               </div>
             ) : (
@@ -137,14 +152,42 @@ export default function MeetingModule() {
                       </span>
                     </div>
                     <div className="bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-3">
-                      {currentStep < 4 && !content ? (
+                      {currentStep < 4 && !minutes ? (
                         <div className="flex items-center gap-2 text-slate-600">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           <span className="text-sm">正在分析会议内容...</span>
                         </div>
                       ) : (
-                        <div className="prose prose-slate max-w-none">
-                          <ReactMarkdown>{content}</ReactMarkdown>
+                        <div className="prose prose-slate max-w-none text-sm">
+                          {/* 显示处理进度 */}
+                          {content && (
+                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                              <ReactMarkdown>{content}</ReactMarkdown>
+                            </div>
+                          )}
+
+                          {/* 显示执行摘要 */}
+                          {summary && (
+                            <div className="mb-4">
+                              <ReactMarkdown>{summary}</ReactMarkdown>
+                            </div>
+                          )}
+
+                          {/* 显示完整纪要 */}
+                          {minutes ? (
+                            <div className="space-y-4">
+                              <div className="border-l-4 border-blue-500 pl-4">
+                                <h4 className="font-semibold text-slate-800 mb-2">
+                                  会议纪要
+                                </h4>
+                                <ReactMarkdown>{minutes}</ReactMarkdown>
+                              </div>
+                            </div>
+                          ) : currentStep === 4 ? (
+                            <div className="text-slate-600 text-center py-8">
+                              <p>✓ 纪要生成中...</p>
+                            </div>
+                          ) : null}
                         </div>
                       )}
                     </div>
@@ -155,20 +198,31 @@ export default function MeetingModule() {
           </div>
         </ScrollArea>
 
-        {/* 底部输入区（可选，目前不可用） */}
-        {isStarted && (
-          <div className="h-20 border-t border-slate-200 flex items-center px-6">
-            <div className="flex-1 flex items-center gap-3">
-              <input
-                type="text"
-                placeholder="可以向 AI 提问关于会议的问题..."
-                disabled
-                className="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400"
-              />
-              <Button disabled size="sm" className="px-6">
-                <Send className="w-4 h-4" />
-              </Button>
-            </div>
+        {/* 底部输入区 */}
+        {currentStep === 4 && minutes && (
+          <div className="h-auto border-t border-slate-200 bg-slate-50 p-4 flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const element = document.createElement("a");
+                element.setAttribute(
+                  "href",
+                  "data:text/markdown;charset=utf-8," +
+                    encodeURIComponent(minutes),
+                );
+                element.setAttribute("download", "meeting_minutes.md");
+                element.style.display = "none";
+                document.body.appendChild(element);
+                element.click();
+                document.body.removeChild(element);
+              }}
+            >
+              ↓ 下载 Markdown
+            </Button>
+            <Button variant="outline" size="sm">
+              分享纪要
+            </Button>
           </div>
         )}
       </div>

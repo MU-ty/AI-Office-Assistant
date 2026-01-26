@@ -8,3 +8,7 @@
 2026-01-25 16:20:04 | app.services.meeting_service | INFO     | list_meetings:59 | 查询会议列表: skip=0, limit=10, status=None
 2026-01-25 16:23:59 | app.services.meeting_service | INFO     | create_meeting:34 | 创建会议: Q1产品规划会
 2026-01-25 16:24:29 | app.services.meeting_service | INFO     | list_meetings:59 | 查询会议列表: skip=0, limit=10, status=None
+2026-01-26 18:08:32 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-26 18:09:56 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-26 18:11:36 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-26 18:16:33 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4

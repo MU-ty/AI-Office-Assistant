@@ -38,3 +38,35 @@
 2026-01-25 15:29:32 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
 2026-01-25 15:30:52 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
 2026-01-25 15:30:53 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 18:06:11 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 18:07:01 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 18:07:39 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 18:08:20 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 18:08:20 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 18:08:20 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 18:08:21 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 18:08:21 | app.core.database | ERROR    | init_db:88 | ❌ 数据库初始化失败: (sqlite3.OperationalError) table work_logs already exists
+[SQL: 
+CREATE TABLE work_logs (
+	id INTEGER NOT NULL, 
+	user_id INTEGER, 
+	work_type VARCHAR(100) NOT NULL, 
+	task_description TEXT NOT NULL, 
+	hours_spent FLOAT NOT NULL, 
+	log_date DATETIME, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id)
+)
+
+]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-01-26 18:08:21 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 18:08:25 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 18:08:26 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 18:08:26 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 18:08:26 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 18:08:26 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 18:08:27 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 18:09:14 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 18:09:14 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成

@@ -5,10 +5,11 @@
 基于流程图 - 按顺序处理各个阶段
 """
 
+import asyncio  # 添加这行 - 在文件顶部导入 asyncio
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import UploadFile
+from fastapi import UploadFile, HTTPException
 import os
 
 from app.utils.logger import get_logger
@@ -17,6 +18,9 @@ from app.services.document_generation_service import document_generation_service
 from app.core.config import settings
 
 logger = get_logger(__name__)
+
+# 简易任务状态存储，方便前端轮询。生产环境请替换为持久化/队列。
+TASK_STATE: Dict[str, dict] = {}
 
 
 class MeetingMinutesService:
@@ -56,15 +60,17 @@ class MeetingMinutesService:
             logger.info(f"文件保存成功: {save_path}")
             
             # 3. 触发异步转录任务（实际项目中应使用Celery）
-            transcription_task_id = await self._start_transcription_task(
+            task_id = await self._start_transcription_task(
                 meeting_id,
                 save_path
             )
-            
+
             return {
                 "meeting_id": meeting_id,
                 "file_path": save_path,
-                "transcription_task_id": transcription_task_id,
+                "task_id": task_id,
+                "step": 0,
+                "is_completed": False,
                 "status": "transcribing",
                 "message": "转录任务已启动"
             }
@@ -96,9 +102,126 @@ class MeetingMinutesService:
         """启动转录任务（实际项目应使用Celery）"""
         # TODO: 集成Whisper或其他转录API
         # 这里返回任务ID，实际应异步处理
-        task_id = f"task_{meeting_id}_{datetime.now().timestamp()}"
+        task_id = f"task_{meeting_id}_{int(datetime.now().timestamp())}"
         logger.info(f"转录任务已启动: {task_id}")
+
+        # 初始化任务状态，后续轮询时根据时间推进模拟流程
+        created_at = datetime.now(timezone.utc)
+        TASK_STATE[task_id] = {
+            "task_id": task_id,
+            "meeting_id": meeting_id,
+            "step": 0,
+            "is_completed": False,
+            "status": "transcribing",
+            "content": "上传成功，开始转录...",
+            "created_at": created_at,
+        }
+
+        # 异步触发处理流程
+        import asyncio
+        asyncio.create_task(self._process_full_workflow(task_id, meeting_id, file_path))
+
         return task_id
+
+    async def _process_full_workflow(self, task_id: str, meeting_id: str, file_path: str) -> None:
+        """
+        完整的处理流程：模拟转录 → NLP分析 → 生成纪要
+        
+        这里用 asyncio.sleep 模拟各个阶段的耗时
+        """
+        try:
+            # 第1步：转录（模拟）
+            await asyncio.sleep(2)
+            TASK_STATE[task_id]["step"] = 1
+            TASK_STATE[task_id]["content"] = "✓ 音视频转录完成\n→ 正在进行语义分析..."
+            logger.info(f"[{task_id}] 步骤1: 转录完成")
+
+            # 生成模拟转录文本
+            transcription_text = self._get_demo_transcription()
+            TASK_STATE[task_id]["transcription"] = transcription_text
+
+            # 第2步：NLP处理（语义分析、实体识别等）
+            await asyncio.sleep(2)
+            TASK_STATE[task_id]["step"] = 2
+            TASK_STATE[task_id]["content"] = "✓ 音视频转录完成\n✓ 语义分析完成\n→ 正在提取议程和决议..."
+            logger.info(f"[{task_id}] 步骤2: NLP分析完成")
+
+            # NLP处理转录文本
+            nlp_result = await self.process_transcription(meeting_id, transcription_text)
+            TASK_STATE[task_id]["nlp_result"] = nlp_result
+
+            # 第3步：提取关键信息（议程、决议、Action Items）
+            await asyncio.sleep(2)
+            TASK_STATE[task_id]["step"] = 3
+            TASK_STATE[task_id]["content"] = "✓ 音视频转录完成\n✓ 语义分析完成\n✓ 议程提取完成\n→ 正在生成纪要文档..."
+            logger.info(f"[{task_id}] 步骤3: 关键信息提取完成")
+
+            # 第4步：生成最终纪要
+            await asyncio.sleep(2)
+            meeting_data = {
+                "title": f"会议纪要 - {meeting_id}",
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "participants": ["参与者1", "参与者2", "参与者3"],
+                **nlp_result,
+            }
+
+            generate_result = await self.generate_meeting_minutes(
+                meeting_id,
+                meeting_data,
+                formats=["markdown", "json"]
+            )
+
+            TASK_STATE[task_id]["step"] = 4
+            TASK_STATE[task_id]["is_completed"] = True
+            TASK_STATE[task_id]["status"] = "completed"
+            TASK_STATE[task_id]["minutes"] = generate_result.get("formats", {}).get("markdown", {}).get("content")
+            TASK_STATE[task_id]["summary"] = self._generate_summary(nlp_result)
+            TASK_STATE[task_id]["content"] = "✓ 会议纪要已生成！"
+
+            logger.info(f"[{task_id}] 步骤4: 纪要生成完成，任务完成")
+
+        except Exception as e:
+            logger.error(f"处理流程出错 [{task_id}]: {e}", exc_info=True)
+            TASK_STATE[task_id]["status"] = "failed"
+            TASK_STATE[task_id]["content"] = f"处理出错: {str(e)}"
+
+    def _get_demo_transcription(self) -> str:
+        """返回演示用的转录文本"""
+        return """各位好，今天的会议主要讨论Q1季度的工作计划和重点项目。
+
+首先，我们来看市场部的工作进展。上个月完成了三个大客户的合作谈判，签约额达到500万。今月的目标是继续扩大客户群体，计划再拓展5个新客户。
+
+其次，技术部报告了新产品开发的进展。目前已完成需求评审，进入开发阶段。预计下月底可以完成核心功能的开发。这个项目的重点是保证质量和按时交付。
+
+关于人力资源方面，HR部表示需要招聘5名技术人员来支持新项目。招聘流程预计在2周内启动。同时，公司计划在本季度进行一次员工培训。
+
+最后，财务部汇报了Q4的财务业绩，整体表现良好，利润同比增长15%。
+
+关键决议：
+1. 批准新产品项目的开发预算500万元
+2. 同意技术部的人员招聘计划
+3. 4月底前完成新客户拓展目标
+
+Action Items：
+1. 市场部制定详细的客户拓展方案，负责人：张三，截止：3月15日
+2. 技术部完成API接口设计文档，负责人：李四，截止：3月10日
+3. HR部启动招聘流程，负责人：王五，截止：3月5日
+4. 财务部编制Q1预算详表，负责人：赵六，截止：3月8日"""
+
+    def _generate_summary(self, nlp_result: Dict) -> str:
+        """基于NLP结果生成执行摘要"""
+        keywords = nlp_result.get("keywords", [])
+        key_points = nlp_result.get("key_points", [])
+
+        summary = "## 执行摘要\n\n"
+        summary += "**关键议题**: " + "、".join([kw[0] if isinstance(kw, tuple) else kw for kw in keywords[:5]]) + "\n\n"
+
+        if key_points:
+            summary += "**核心内容**: \n"
+            for point in key_points[:3]:
+                summary += f"- {point}\n"
+
+        return summary
     
     # ============================================================
     # 第4-9步：NLP文本处理和分析
@@ -165,6 +288,24 @@ class MeetingMinutesService:
         except Exception as e:
             logger.error(f"文本处理失败: {e}")
             return {"error": str(e)}
+
+    async def get_task_status(self, task_id: str) -> Dict:
+        """供前端轮询的任务状态查询"""
+        state = TASK_STATE.get(task_id)
+        if not state:
+            raise HTTPException(status_code=404, detail="task_not_found")
+
+        # 根据任务的 step_progress 返回当前状态
+        return {
+            "task_id": task_id,
+            "meeting_id": state.get("meeting_id"),
+            "step": state.get("step", 0),
+            "is_completed": state.get("is_completed", False),
+            "content": state.get("content", ""),
+            "status": state.get("status", "processing"),
+            "summary": state.get("summary"),  # 纪要摘要
+            "minutes": state.get("minutes"),  # 完整纪要
+        }
     
     async def _identify_topics(self, text: str) -> List[str]:
         """
