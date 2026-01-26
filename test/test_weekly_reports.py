@@ -8,7 +8,7 @@ import asyncio
 from datetime import datetime, timedelta
 import json
 
-BASE_URL = "http://localhost:8002/api"
+BASE_URL = "http://localhost:8000/api/v1/reports"
 
 # 测试数据
 TEST_LOG_DATA = {
