@@ -15,6 +15,7 @@ import os
 from app.utils.logger import get_logger
 from app.services.nlp_service import nlp_service
 from app.services.document_generation_service import document_generation_service
+from app.services.email_service import email_service
 from app.core.config import settings
 
 logger = get_logger(__name__)
@@ -561,9 +562,86 @@ Action Items：
         Returns:
             发送状态
         """
-        # TODO: 使用smtplib或yagmail发送邮件
-        logger.info(f"发送会议纪要邮件: {meeting_id} -> {recipients}")
-        pass
+        logger.info(f"准备发送会议纪要邮件: {meeting_id} -> {recipients}")
+        
+        try:
+            # 1. 确定文件路径
+            filename = f"{meeting_id}_minutes"
+            if format == "pdf":
+                filename += ".pdf"
+            elif format == "docx":
+                filename += ".docx"
+            elif format == "markdown":
+                filename += ".md"
+            else:
+                filename += ".pdf" # 默认PDF
+                
+            file_path = os.path.join(settings.UPLOAD_DIR, filename)
+            
+            # 2. 检查文件是否存在
+            if not os.path.exists(file_path):
+                # 如果文件不存在，尝试从内存或模拟数据中重新生成
+                logger.info(f"文件不存在 {file_path}，尝试重新生成...")
+                
+                # 尝试获取会议数据
+                minutes_data = MINUTES_STORE.get(meeting_id)
+                if not minutes_data:
+                    # 尝试从任务状态获取
+                    for state in TASK_STATE.values():
+                        if state.get("meeting_id") == meeting_id and state.get("nlp_result"):
+                            minutes_data = {
+                                "title": f"会议纪要 - {meeting_id}",
+                                "date": datetime.now().strftime("%Y-%m-%d"),
+                                "participants": ["参与者..."],
+                                **state["nlp_result"]
+                            }
+                            break
+                
+                if minutes_data:
+                    # 重新生成
+                    await self.generate_meeting_minutes(meeting_id, minutes_data, [format])
+                else:
+                    return {"status": "error", "message": f"找不到会议纪要文件: {filename}，且无法重新生成"}
+            
+            if not os.path.exists(file_path):
+                return {"status": "error", "message": f"文件生成失败: {filename}"}
+
+            # 3. 准备邮件内容
+            title = f"会议纪要 - {meeting_id}"
+            summary = "请查看附件中的详细会议纪要。"
+            
+            # 尝试获取更详细的摘要
+            if MINUTES_STORE.get(meeting_id):
+                title = MINUTES_STORE[meeting_id].get("title", title)
+                summary = MINUTES_STORE[meeting_id].get("summary", summary)
+            
+            subject = f"【会议纪要】{title}"
+            content = f"""您好，
+
+这是会议 "{title}" 的纪要文档。
+
+{summary}
+
+完整内容请查阅附件。
+
+此邮件由 AI Office Assistant 自动发送。"""
+
+            # 4. 发送邮件
+            success = email_service.send_email(
+                recipients=recipients,
+                subject=subject,
+                content=content,
+                attachments=[file_path]
+            )
+            
+            if success:
+                return {"status": "success", "message": f"邮件已发送至 {len(recipients)} 位收件人"}
+            else:
+                return {"status": "error", "message": "邮件发送失败，请检查服务器日志"}
+                
+        except Exception as e:
+            logger.error(f"发送邮件流程异常: {e}")
+            return {"status": "error", "message": str(e)}
     
     async def share_minutes(
         self,

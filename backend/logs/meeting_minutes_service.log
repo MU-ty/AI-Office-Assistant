@@ -296,3 +296,20 @@ NameError: name 'asyncio' is not defined. Did you forget to import 'asyncio'?
 2026-01-26 20:32:00 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:446 | Markdown纪要已生成: ./uploads\meeting_1769430712_minutes.md
 2026-01-26 20:32:00 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:472 | JSON纪要已生成: ./uploads\meeting_1769430712_minutes.json
 2026-01-26 20:32:00 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:196 | [task_meeting_1769430712_1769430712] 步骤4: 纪要生成完成，任务完成
+2026-01-26 21:45:53 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:62 | 文件保存成功: ./uploads\meeting_1769435153_20260126_214553_雨过后的风景.mp3
+2026-01-26 21:45:53 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:108 | 转录任务已启动: task_meeting_1769435153_1769435153
+2026-01-26 21:45:55 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:139 | [task_meeting_1769435153_1769435153] 步骤1: 转录完成
+2026-01-26 21:45:57 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:149 | [task_meeting_1769435153_1769435153] 步骤2: NLP分析完成
+2026-01-26 21:45:57 | app.services.meeting_minutes_service | INFO     | process_transcription:261 | 开始处理转录文本: meeting_1769435153
+2026-01-26 21:45:57 | app.services.meeting_minutes_service | INFO     | process_transcription:266 | 文本分句完成: 21句
+2026-01-26 21:45:57 | app.services.meeting_minutes_service | INFO     | process_transcription:270 | 关键词提取完成: 15个
+2026-01-26 21:45:57 | app.services.meeting_minutes_service | INFO     | process_transcription:274 | 关键句提取完成: 10句
+2026-01-26 21:45:57 | app.services.meeting_minutes_service | INFO     | process_transcription:278 | 实体识别完成: {'persons': [], 'organizations': [], 'locations': [], 'dates': [], 'times': []}
+2026-01-26 21:45:57 | app.services.meeting_minutes_service | INFO     | process_transcription:282 | 话题划分完成: 5个话题
+2026-01-26 21:45:59 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:159 | [task_meeting_1769435153_1769435153] 步骤3: 关键信息提取完成
+2026-01-26 21:46:01 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:446 | Markdown纪要已生成: ./uploads\meeting_1769435153_minutes.md
+2026-01-26 21:46:01 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:472 | JSON纪要已生成: ./uploads\meeting_1769435153_minutes.json
+2026-01-26 21:46:01 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:196 | [task_meeting_1769435153_1769435153] 步骤4: 纪要生成完成，任务完成
+2026-01-26 22:08:21 | app.services.meeting_minutes_service | INFO     | send_minutes_email:564 | 准备发送会议纪要邮件: demo_meeting -> ['3393675686@qq.com']
+2026-01-26 22:08:21 | app.services.meeting_minutes_service | ERROR    | send_minutes_email:642 | 发送邮件流程异常: name 'email_service' is not defined
+2026-01-26 22:10:29 | app.services.meeting_minutes_service | INFO     | send_minutes_email:565 | 准备发送会议纪要邮件: demo_meeting -> ['3393675686@qq.com']

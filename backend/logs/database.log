@@ -83,3 +83,20 @@ CREATE TABLE work_logs (
 2026-01-26 18:36:20 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
 2026-01-26 19:58:50 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
 2026-01-26 19:58:50 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 21:42:27 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 21:42:29 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 21:54:04 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 21:54:05 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 21:54:24 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 21:56:59 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 21:57:00 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 21:57:01 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 21:57:03 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 21:57:32 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 21:57:33 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 21:58:57 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 21:58:58 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 21:59:29 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 21:59:30 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 22:10:04 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 22:10:05 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成

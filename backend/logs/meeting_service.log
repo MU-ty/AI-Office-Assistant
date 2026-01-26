@@ -33,3 +33,5 @@
 2026-01-26 20:31:05 | app.services.meeting_service | INFO     | get_minutes:220 | 获取会议纪要: meeting_1769430657
 2026-01-26 20:31:52 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
 2026-01-26 20:32:01 | app.services.meeting_service | INFO     | get_minutes:220 | 获取会议纪要: meeting_1769430712
+2026-01-26 21:45:53 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: 雨过后的风景.mp3
+2026-01-26 21:46:01 | app.services.meeting_service | INFO     | get_minutes:220 | 获取会议纪要: meeting_1769435153
