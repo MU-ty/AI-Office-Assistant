@@ -5,6 +5,7 @@ import {
   fetchTaskStatus,
   fetchMeetingMinutes,
 } from "../api";
+import { pollTaskStatusForMinutes } from "../api/streaming";
 import {
   minutesToMessages,
   ChatMessage,
@@ -31,6 +32,15 @@ export interface MeetingMinutesRecord {
   formats?: Record<string, unknown>;
 }
 
+export interface MeetingData {
+  id: string;
+  title: string;
+  meeting_type?: string;
+  start_time?: string;
+  location?: string;
+  created_at?: string;
+}
+
 type UiMessage = ChatMessage & { label?: string };
 
 export function useMeeting(initialMeetingId?: string) {
@@ -40,9 +50,12 @@ export function useMeeting(initialMeetingId?: string) {
   const [summary, setSummary] = useState(""); // 执行摘要
   const [isStarted, setIsStarted] = useState(false);
   const [meetingId, setMeetingId] = useState(initialMeetingId || "");
+  const [meetingTitle, setMeetingTitle] = useState(""); // 新增：会议标题
+  const [generatedAt, setGeneratedAt] = useState<string>(""); // 新增：生成时间
   const [taskId, setTaskId] = useState<string>("");
   const hasLoadedInitialRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopPollingRef = useRef<(() => void) | null>(null);
 
   // 1. 先声明状态获取函数
   function getStatus(index: number) {
@@ -67,6 +80,8 @@ export function useMeeting(initialMeetingId?: string) {
     setMinutes("");
     setSummary("");
     setMeetingId("");
+    setMeetingTitle(""); // 重置标题
+    setGeneratedAt(""); // 重置生成时间
 
     try {
       const meetingPayload = {
@@ -82,6 +97,7 @@ export function useMeeting(initialMeetingId?: string) {
       }
 
       setMeetingId(meetingId);
+      setMeetingTitle(meeting.title || file.name); // 保存会议标题
 
       const uploadResp = await uploadMeetingAudio(meetingId, file);
       const newTaskId = uploadResp.task_id || uploadResp.transcription_task_id;
@@ -91,28 +107,34 @@ export function useMeeting(initialMeetingId?: string) {
 
       setTaskId(newTaskId);
 
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      // 使用流式轮询替代标准轮询
+      if (stopPollingRef.current) {
+        stopPollingRef.current();
+      }
 
-      pollTimerRef.current = setInterval(async () => {
-        try {
-          const data: TaskStatus = await fetchTaskStatus(newTaskId);
-          const step = typeof data.step === "number" ? data.step : 0;
-          setCurrentStep(Math.min(step, 4));
-
-          if (data.content) setContent(data.content);
-          if (data.summary) setSummary(data.summary);
-          if (data.minutes) setMinutes(data.minutes);
-
-          if (data.is_completed) {
-            clearInterval(pollTimerRef.current!);
-            pollTimerRef.current = null;
-            setCurrentStep(4);
-            setIsStarted(false);
-          }
-        } catch (err) {
-          console.error("轮询出错:", err);
-        }
-      }, 2000); // 改为2秒轮询一次，更快看到进度
+      stopPollingRef.current = await pollTaskStatusForMinutes(
+        newTaskId,
+        (minutesData) => {
+          setMinutes(minutesData);
+        },
+        (summaryData) => {
+          setSummary(summaryData);
+        },
+        (step) => {
+          // 实时更新进度条
+          setCurrentStep(step);
+        },
+        () => {
+          // 完成回调 - 保持 isStarted=true 让用户看到最终结果
+          setCurrentStep(4);
+          setGeneratedAt(new Date().toISOString());
+        },
+        (error) => {
+          console.error("流式轮询错误:", error);
+          setIsStarted(false);
+        },
+        1000, // 1 秒轮询一次
+      );
     } catch (error) {
       console.error("启动失败:", error);
       setIsStarted(false);
@@ -128,9 +150,11 @@ export function useMeeting(initialMeetingId?: string) {
         await fetchMeetingMinutes(targetMeetingId);
 
       setMeetingId(targetMeetingId);
+      if (data.title) setMeetingTitle(data.title);
       if (data.content) setContent(data.content);
       if (data.summary) setSummary(data.summary);
       if (data.minutes) setMinutes(data.minutes);
+      if (data.generated_at) setGeneratedAt(data.generated_at);
       setCurrentStep(4);
     } catch (error) {
       console.error("加载会议纪要失败:", error);
@@ -173,6 +197,9 @@ export function useMeeting(initialMeetingId?: string) {
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
       }
+      if (stopPollingRef.current) {
+        stopPollingRef.current();
+      }
     };
   }, []);
 
@@ -186,6 +213,8 @@ export function useMeeting(initialMeetingId?: string) {
     summary,
     taskId,
     meetingId,
+    meetingTitle,
+    generatedAt,
     loadExistingMinutes,
     messages,
   };

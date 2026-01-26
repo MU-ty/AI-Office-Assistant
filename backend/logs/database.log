@@ -81,3 +81,5 @@ CREATE TABLE work_logs (
 2026-01-26 18:32:23 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
 2026-01-26 18:36:19 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
 2026-01-26 18:36:20 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-26 19:58:50 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-26 19:58:50 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
