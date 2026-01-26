@@ -130,6 +130,15 @@ export async function pollTaskStatusForMinutes(
 
       const data = await response.json();
 
+      // 调试日志
+      console.log("📊 轮询结果:", {
+        step: data.step,
+        minutes: data.minutes ? `${data.minutes.length} chars` : "empty",
+        summary: data.summary ? `${data.summary.length} chars` : "empty",
+        is_completed: data.is_completed,
+        rawData: data,
+      });
+
       // 更新步骤（每次都更新，确保进度条实时反馈）
       if (typeof data.step === "number") {
         onStepUpdate(Math.min(data.step, 4));
@@ -137,17 +146,30 @@ export async function pollTaskStatusForMinutes(
 
       // 仅当数据更新时才触发回调（增量更新）
       if (data.minutes && data.minutes.length > lastMinutesLength) {
+        console.log(
+          "✅ Minutes 更新:",
+          data.minutes.length,
+          "->",
+          lastMinutesLength,
+        );
         onMinutesUpdate(data.minutes);
         lastMinutesLength = data.minutes.length;
       }
 
       if (data.summary && data.summary.length > lastSummaryLength) {
+        console.log(
+          "✅ Summary 更新:",
+          data.summary.length,
+          "->",
+          lastSummaryLength,
+        );
         onSummaryUpdate(data.summary);
         lastSummaryLength = data.summary.length;
       }
 
       // 任务完成
       if (data.is_completed) {
+        console.log("✅ 任务完成");
         isPolling = false;
         onComplete();
         return;
@@ -158,6 +180,7 @@ export async function pollTaskStatusForMinutes(
         setTimeout(poll, interval);
       }
     } catch (err) {
+      console.error("❌ 轮询错误:", err);
       isPolling = false;
       onError(err instanceof Error ? err : new Error(String(err)));
     }

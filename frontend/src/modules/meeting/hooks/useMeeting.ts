@@ -6,10 +6,16 @@ import {
   fetchMeetingMinutes,
 } from "../api";
 import { pollTaskStatusForMinutes } from "../api/streaming";
+import { diagnosticPoll } from "../api/diagnostic";
 import {
   minutesToMessages,
   ChatMessage,
 } from "@/modules/meeting/utils/minutesToMessages";
+import {
+  convertMinutesJSONToMarkdown,
+  generateSummary,
+  MeetingMinutesJSON,
+} from "@/modules/meeting/utils/minutesConverter";
 
 export interface TaskStatus {
   task_id: string;
@@ -107,30 +113,75 @@ export function useMeeting(initialMeetingId?: string) {
 
       setTaskId(newTaskId);
 
-      // 使用流式轮询替代标准轮询
+      console.log("🚀 开始轮询任务:", newTaskId);
+
+      // 使用诊断轮询（临时）
       if (stopPollingRef.current) {
         stopPollingRef.current();
       }
 
-      stopPollingRef.current = await pollTaskStatusForMinutes(
+      stopPollingRef.current = await diagnosticPoll(
         newTaskId,
-        (minutesData) => {
-          setMinutes(minutesData);
+        (status) => {
+          // 更新所有字段
+          if (status.step !== undefined) {
+            setCurrentStep(Math.min(status.step, 4));
+          }
+          if (status.content) {
+            setContent(status.content);
+          }
+          if (status.summary) {
+            setSummary(status.summary);
+          }
+          if (status.minutes) {
+            setMinutes(status.minutes);
+          }
         },
-        (summaryData) => {
-          setSummary(summaryData);
-        },
-        (step) => {
-          // 实时更新进度条
-          setCurrentStep(step);
-        },
-        () => {
-          // 完成回调 - 保持 isStarted=true 让用户看到最终结果
+        async () => {
+          // 任务完成后，调用纪要接口获取完整数据
+          console.log("✅ 诊断轮询完成，开始获取完整纪要");
           setCurrentStep(4);
-          setGeneratedAt(new Date().toISOString());
+
+          try {
+            const minutesData = await fetchMeetingMinutes(meetingId);
+            console.log("📄 收到完整纪要数据:", minutesData);
+
+            // 检查数据格式并转换
+            if (minutesData.paragraphs || minutesData.sentences) {
+              // JSON 格式，需要转换为 Markdown
+              console.log("🔄 检测到 JSON 格式，转换为 Markdown");
+              const markdown = convertMinutesJSONToMarkdown(
+                minutesData as MeetingMinutesJSON,
+              );
+              const summary = generateSummary(
+                minutesData as MeetingMinutesJSON,
+              );
+
+              setMinutes(markdown);
+              setSummary(summary);
+            } else if (minutesData.minutes) {
+              // 已经是 Markdown 格式
+              console.log("📝 检测到 Markdown 格式");
+              setMinutes(minutesData.minutes);
+              if (minutesData.summary) {
+                setSummary(minutesData.summary);
+              }
+            }
+
+            if (minutesData.content) {
+              setContent(minutesData.content);
+            }
+            if (minutesData.generated_at) {
+              setGeneratedAt(minutesData.generated_at);
+            } else {
+              setGeneratedAt(new Date().toISOString());
+            }
+          } catch (error) {
+            console.error("❌ 获取完整纪要失败:", error);
+          }
         },
         (error) => {
-          console.error("流式轮询错误:", error);
+          console.error("❌ 诊断轮询错误:", error);
           setIsStarted(false);
         },
         1000, // 1 秒轮询一次
