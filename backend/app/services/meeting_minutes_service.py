@@ -21,6 +21,7 @@ from app.services.nlp_service import nlp_service
 from app.services.document_generation_service import document_generation_service
 from app.services.email_service import email_service
 from app.services.audio_service import audio_service  # 导入 AudioService
+from app.services.llm_service import llm_service  # 导入 LLMService
 from app.core.config import settings
 
 logger = get_logger(__name__)
@@ -66,7 +67,7 @@ class MeetingMinutesService:
             MeetingMinutesService._model = whisper.load_model("base")
         return MeetingMinutesService._model
 
-    async def _transcribe_audio(self, file_path: str, task_id: str = None) -> str:
+    async def _transcribe_audio(self, file_path: str, task_id: str = None) -> Dict:
         """执行音频转录（支持分块处理）"""
         try:
             model = self._get_model()
@@ -78,10 +79,12 @@ class MeetingMinutesService:
             loop = asyncio.get_running_loop()
             
             # 在 executor 中运行分块，避免阻塞
-            chunks = await loop.run_in_executor(None, audio_service.split_audio, file_path, 600)
+            chunk_duration = 600
+            chunks = await loop.run_in_executor(None, audio_service.split_audio, file_path, chunk_duration)
             
             total_chunks = len(chunks)
             full_text = []
+            all_segments = []
             
             for i, chunk_path in enumerate(chunks):
                 if task_id and task_id in TASK_STATE:
@@ -90,20 +93,29 @@ class MeetingMinutesService:
                 
                 def run_transcription_chunk():
                     # 调用 whisper 转录单个分块
-                    return model.transcribe(chunk_path, fp16=False)
+                    # initial_prompt: 提示模型使用简体中文，可以有效减少繁体字输出
+                    return model.transcribe(chunk_path, fp16=False, initial_prompt="以下是简体中文的会议记录。")
                 
                 chunk_result = await loop.run_in_executor(None, run_transcription_chunk)
                 full_text.append(chunk_result["text"])
+                
+                # 调整分块后的时间戳
+                chunk_offset = i * chunk_duration
+                for segment in chunk_result.get("segments", []):
+                    # Whisper segment 包含 start, end, text 等字段
+                    segment["start"] += chunk_offset
+                    segment["end"] += chunk_offset
+                    all_segments.append(segment)
                 
                 # 可选：清理分块文件
                 # os.remove(chunk_path)
 
             final_text = "".join(full_text)
             
-            # 清理分块目录 (可选，保留以便调试)
-            # shutil.rmtree(os.path.dirname(chunks[0]))
-            
-            return final_text
+            return {
+                "text": final_text,
+                "segments": all_segments
+            }
             
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
@@ -215,12 +227,35 @@ class MeetingMinutesService:
             TASK_STATE[task_id]["content"] = "正在进行语音转录 (这可能需要几分钟)..."
             
             # 执行真实转录 (使用转换后的文件)
-            transcription_text = await self._transcribe_audio(converted_path, task_id)
+            transcription_result = await self._transcribe_audio(converted_path, task_id)
+            raw_text = transcription_result["text"]
+            segments = transcription_result["segments"]
+            
+            # 声纹识别/角色分离
+            TASK_STATE[task_id]["content"] = "✓ 音视频转录完成\n→ 正在进行声纹识别(角色分离)..."
+            from app.services.speaker_diarization_service import speaker_diarization_service
+            
+            diarized_segments = await loop.run_in_executor(
+                None, 
+                speaker_diarization_service.diarize, 
+                converted_path, 
+                segments
+            )
+            
+            # 重组包含说话人的文本
+            diarized_text_lines = []
+            for seg in diarized_segments:
+                speaker = seg.get('speaker', 'Unknown')
+                text = seg.get('text', '').strip()
+                if text:
+                    diarized_text_lines.append(f"{speaker}: {text}")
+            
+            final_text = "\n".join(diarized_text_lines) if diarized_text_lines else raw_text
             
             TASK_STATE[task_id]["step"] = 1
-            TASK_STATE[task_id]["content"] = "✓ 音视频转录完成\n→ 正在进行语义分析..."
-            TASK_STATE[task_id]["transcription"] = transcription_text
-            logger.info(f"[{task_id}] 步骤1: 转录完成，文本长度: {len(transcription_text)}")
+            TASK_STATE[task_id]["content"] = "✓ 音视频转录完成\n✓ 声纹识别完成\n→ 正在进行语义分析..."
+            TASK_STATE[task_id]["transcription"] = final_text
+            logger.info(f"[{task_id}] 步骤1: 转录及声纹识别完成，文本长度: {len(final_text)}")
 
             # 第2步：NLP处理（语义分析、实体识别等）
             await asyncio.sleep(1) # 给前端一点反应时间
@@ -229,7 +264,7 @@ class MeetingMinutesService:
             logger.info(f"[{task_id}] 步骤2: NLP分析完成")
 
             # NLP处理转录文本
-            nlp_result = await self.process_transcription(meeting_id, transcription_text)
+            nlp_result = await self.process_transcription(meeting_id, final_text)
             TASK_STATE[task_id]["nlp_result"] = nlp_result
 
             # 第3步：提取关键信息（议程、决议、Action Items）
@@ -262,7 +297,8 @@ class MeetingMinutesService:
                 title=meeting_data.get("title"),
                 summary=summary_text,
                 minutes=minutes_markdown,
-                formats=generate_result.get("formats", {})
+                formats=generate_result.get("formats", {}),
+                original_data=meeting_data # 传入原始数据
             )
 
             TASK_STATE[task_id]["step"] = 4
@@ -305,6 +341,10 @@ Action Items：
 
     def _generate_summary(self, nlp_result: Dict) -> str:
         """基于NLP结果生成执行摘要"""
+        # 如果 LLM 已经生成了摘要，直接使用
+        if nlp_result.get("summary") and len(nlp_result["summary"]) > 10:
+            return nlp_result["summary"]
+
         keywords = nlp_result.get("keywords", [])
         key_points = nlp_result.get("key_points", [])
 
@@ -340,34 +380,98 @@ Action Items：
         try:
             logger.info(f"开始处理转录文本: {meeting_id}")
             
-            # 4. 文本分句和分段
+            # 4. 文本分句和分段 (基础NLP)
             sentences = self.nlp.split_sentences(transcription_text)
             paragraphs = self.nlp.split_paragraphs(transcription_text)
             logger.info(f"文本分句完成: {len(sentences)}句")
             
-            # 5. 提取关键词
+            # 5. 提取关键词 (基础NLP)
             keywords = self.nlp.extract_keywords(transcription_text, top_k=15)
             logger.info(f"关键词提取完成: {len(keywords)}个")
             
-            # 6. 提取关键句
+            # 6. 提取关键句 (基础NLP)
             key_sentences = self.nlp.extract_key_sentences(transcription_text, top_k=10)
             logger.info(f"关键句提取完成: {len(key_sentences)}句")
             
-            # 7. 实体识别（日期、时间等）
+            # 7. 实体识别 (基础NLP)
             entities = self.nlp.extract_entities(transcription_text)
             logger.info(f"实体识别完成: {entities}")
             
-            # 8. 话题划分（使用主题聚类或LLM）
-            topics = await self._identify_topics(transcription_text)
-            logger.info(f"话题划分完成: {len(topics)}个话题")
+            # 8. 高级分析 (LLM)
+            # 尝试使用 LLM 进行深度分析
+            llm_result = {}
+            if llm_service.check_availability():
+                logger.info("调用 LLM 进行会议内容分析...")
+                # 在 executor 中运行同步的 LLM 调用
+                loop = asyncio.get_running_loop()
+                llm_result = await loop.run_in_executor(
+                    None, 
+                    llm_service.analyze_meeting_transcript, 
+                    transcription_text
+                )
+                
+                # 如果 LLM 返回了实体信息，合并到 NLP 结果中
+                if llm_result.get("entities"):
+                    logger.info("合并 LLM 提取的实体信息")
+                    llm_entities = llm_result["entities"]
+                    # 合并人名
+                    entities['persons'].extend(llm_entities.get('persons', []))
+                    entities['persons'] = list(set(entities['persons']))
+                    # 合并机构
+                    entities['organizations'].extend(llm_entities.get('organizations', []))
+                    entities['organizations'] = list(set(entities['organizations']))
+                    # 合并地点
+                    entities['locations'].extend(llm_entities.get('locations', []))
+                    entities['locations'] = list(set(entities['locations']))
+                    # 合并日期
+                    entities['dates'].extend(llm_entities.get('dates', []))
+                    entities['dates'] = list(set(entities['dates']))
             
-            # 9. 提取议程、决议、Action Items（使用LLM或规则）
-            meeting_components = await self._extract_meeting_components(
-                transcription_text,
-                sentences,
-                topics
-            )
+            # 9. 整合结果
+            topics = llm_result.get("topics", [])
+            if not topics:
+                # Fallback: 使用关键词作为话题
+                topics = await self._identify_topics(transcription_text)
             
+            # 提取组件 (优先使用 LLM 结果)
+            meeting_components = {
+                "agendas": llm_result.get("agendas", []),
+                "decisions": llm_result.get("decisions", []),
+                "action_items": llm_result.get("action_items", []),
+                "key_points": llm_result.get("key_points", []),
+                "summary": llm_result.get("summary", "")
+            }
+            
+            # 如果 LLM 结果为空，使用规则提取兜底
+            # 注意：即使 agendas 不为空，我们也应该尝试用规则提取进行补充，或者至少记录日志
+            if not meeting_components["agendas"] and not meeting_components["decisions"]:
+                logger.info("LLM 结果为空或不完整，使用规则提取进行兜底")
+                
+                # 修复: 确保传入的 topics 是字典列表
+                formatted_topics = []
+                for topic in topics:
+                    if isinstance(topic, str):
+                        formatted_topics.append({"content": topic})
+                    elif isinstance(topic, dict):
+                        formatted_topics.append(topic)
+                    else:
+                        formatted_topics.append({"content": str(topic)})
+                
+                fallback_components = await self._extract_meeting_components(
+                    transcription_text,
+                    sentences,
+                    formatted_topics
+                )
+                
+                # 智能合并: 仅当 LLM 结果为空时才覆盖
+                for key, value in fallback_components.items():
+                    if not meeting_components.get(key):
+                        meeting_components[key] = value
+            
+            # 整理参与人
+            participants = entities.get('persons', [])
+            
+            # 确保最终结果包含原始转录文本，方便前端展示
             return {
                 "meeting_id": meeting_id,
                 "sentences": sentences,
@@ -376,6 +480,8 @@ Action Items：
                 "key_sentences": key_sentences,
                 "entities": entities,
                 "topics": topics,
+                "participants": participants,
+                "transcription_text": transcription_text, # 显式包含转录文本
                 **meeting_components,
                 "text_stats": self.nlp.get_text_stats(transcription_text)
             }
@@ -429,7 +535,8 @@ Action Items：
         title: Optional[str],
         summary: Optional[str],
         minutes: Optional[str],
-        formats: Dict
+        formats: Dict,
+        original_data: Optional[Dict] = None  # 新增：保存原始结构化数据
     ) -> Dict:
         """将纪要结果保存到内存存储，便于后端/前端查询"""
         record = {
@@ -440,9 +547,23 @@ Action Items：
             "content": "✓ 会议纪要已生成！",
             "formats": formats,
             "generated_at": datetime.now(timezone.utc).isoformat(),
+            "original_data": original_data or {} # 保存原始数据
         }
         MINUTES_STORE[meeting_id] = record
         return record
+        
+    def get_minutes_data(self, meeting_id: str) -> Optional[Dict]:
+        """获取会议的原始结构化数据"""
+        record = MINUTES_STORE.get(meeting_id)
+        if record and "original_data" in record:
+            return record["original_data"]
+        
+        # 尝试从 TASK_STATE 查找
+        for state in TASK_STATE.values():
+            if state.get("meeting_id") == meeting_id and state.get("nlp_result"):
+                return state["nlp_result"]
+                
+        return None
     
     async def _identify_topics(self, text: str) -> List[str]:
         """
@@ -459,28 +580,73 @@ Action Items：
         self,
         text: str,
         sentences: List[str],
-        topics: List[str]
+        topics: List[dict]
     ) -> Dict:
         """
         提取会议的各个组件：议程、决议、Action Items等
         
         实际项目应调用Qwen-plus API或其他LLM
         """
-        # 这里是简化的规则提取
-        # 实际项目应使用LLM API获取更准确的结果
+        # 调用 NLP Service 提取议程
+        agendas = self.nlp.extract_agendas(text, topics)
+        
+        # 修复: 确保 agendas 不为 None
+        if agendas is None:
+            agendas = []
+            
+        # 如果没有提取到议程，尝试使用默认规则
+        if not agendas and topics:
+            agendas = []
+            for topic in topics[:3]:
+                if isinstance(topic, dict):
+                     content = topic.get('content', '')
+                     if len(content) < 50:
+                         agendas.append(content)
+                     else:
+                         agendas.append(f"议题: {content[:20]}...")
+                else:
+                     agendas.append(f"议题: {str(topic)[:20]}...")
+        
+        # 兜底：如果还是没有议程，尝试从第一句话提取
+        if not agendas and text:
+            first_sent = text.split('。')[0]
+            if len(first_sent) < 50:
+                agendas.append(first_sent)
+            else:
+                agendas.append("会议常规讨论")
+
+        # 调用 NLP Service 提取决议
+        decisions = self.nlp.extract_decisions(text)
+        if decisions is None:
+            decisions = []
+        
+        # 如果没有提取到决议，尝试从关键句中获取可能的决议
+        if not decisions:
+            # 简单的启发式：包含"同意"、"确定"的关键句可能是决议
+            key_sentences = self.nlp.extract_key_sentences(text, top_k=10)
+            if key_sentences:
+                for sent in key_sentences:
+                    if any(k in sent for k in ["同意", "确定", "批准", "通过", "预算", "计划"]):
+                        decisions.append(sent)
+        
+        # 兜底：如果没有决议，添加默认提示
+        if not decisions:
+             decisions.append("本次会议暂无明确决议")
+
+        # 调用 NLP Service 提取 Action Items
+        action_items = self.nlp.extract_action_items(text)
+        if action_items is None:
+            action_items = []
+        
+        # 兜底：如果没有待办，添加默认提示
+        if not action_items:
+             action_items = [{"content": "暂无明确待办事项", "owner": "无", "due_date": "无", "status": "pending"}]
         
         return {
-            "agendas": [f"议题: {topic}" for topic in topics[:3]],
-            "decisions": [f"决议: {sentence}" for sentence in self.nlp.extract_key_sentences(text, top_k=3)],
-            "action_items": [
-                {
-                    "content": f"Action Item: {sentence}",
-                    "owner": "待定",
-                    "due_date": "待定"
-                }
-                for sentence in self.nlp.extract_key_sentences(text, top_k=3)
-            ],
-            "key_points": [f"关键点: {sentence}" for sentence in self.nlp.extract_key_sentences(text, top_k=5)]
+            "agendas": agendas,
+            "decisions": decisions,
+            "action_items": action_items,
+            "key_points": [f"关键点: {sentence}" for sentence in self.nlp.extract_key_sentences(text, top_k=5) if sentence]
         }
     
     # ============================================================
@@ -620,9 +786,52 @@ Action Items：
         Returns:
             导出的纪要信息
         """
-        # TODO: 从数据库获取会议数据并重新生成
         logger.info(f"导出会议纪要: {meeting_id} (格式: {format})")
-        pass
+        
+        # 1. 确定文件路径
+        filename = f"{meeting_id}_minutes"
+        if format == "pdf":
+            filename += ".pdf"
+        elif format == "docx":
+            filename += ".docx"
+        elif format == "markdown":
+            filename += ".md"
+        elif format == "json":
+            filename += ".json"
+        
+        file_path = os.path.join(settings.UPLOAD_DIR, filename)
+        
+        # 2. 如果文件不存在，尝试生成
+        if not os.path.exists(file_path):
+            # 尝试获取数据
+            minutes_data = MINUTES_STORE.get(meeting_id)
+            if not minutes_data:
+                # 尝试从 TASK_STATE 恢复
+                for state in TASK_STATE.values():
+                    if state.get("meeting_id") == meeting_id and state.get("nlp_result"):
+                         minutes_data = {
+                            "title": f"会议纪要 - {meeting_id}",
+                            "date": datetime.now().strftime("%Y-%m-%d"),
+                            "participants": ["参与者..."],
+                            **state["nlp_result"]
+                        }
+                         break
+            
+            if minutes_data:
+                await self.generate_meeting_minutes(meeting_id, minutes_data, [format])
+            else:
+                 raise HTTPException(status_code=404, detail="meeting_minutes_not_found")
+        
+        # 3. 返回文件信息
+        if os.path.exists(file_path):
+            return {
+                "meeting_id": meeting_id,
+                "format": format,
+                "file_path": file_path,
+                "filename": filename
+            }
+        else:
+             raise HTTPException(status_code=500, detail="export_failed")
     
     async def send_minutes_email(
         self,
@@ -652,6 +861,8 @@ Action Items：
                 filename += ".docx"
             elif format == "markdown":
                 filename += ".md"
+            elif format == "json":
+                filename += ".json"
             else:
                 filename += ".pdf" # 默认PDF
                 
@@ -663,9 +874,15 @@ Action Items：
                 logger.info(f"文件不存在 {file_path}，尝试重新生成...")
                 
                 # 尝试获取会议数据
-                minutes_data = MINUTES_STORE.get(meeting_id)
+                minutes_data = None
+                
+                # 1. 尝试从 MINUTES_STORE 获取并解包 original_data
+                store_record = MINUTES_STORE.get(meeting_id)
+                if store_record and "original_data" in store_record:
+                    minutes_data = store_record["original_data"]
+                
+                # 2. 如果没找到，尝试从 TASK_STATE 获取
                 if not minutes_data:
-                    # 尝试从任务状态获取
                     for state in TASK_STATE.values():
                         if state.get("meeting_id") == meeting_id and state.get("nlp_result"):
                             minutes_data = {
