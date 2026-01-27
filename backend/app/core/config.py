@@ -135,11 +135,11 @@ class Settings(BaseSettings):
     # 邮件配置
     # ============================================================
     
-    SMTP_SERVER: str = "smtp.gmail.com"
-    SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
-    SMTP_FROM: str = "noreply@office-assistant.com"
+    SMTP_SERVER: str = "smtp.qq.com"
+    SMTP_PORT: int = 465
+    SMTP_USER: str = "3417633465@qq.com"
+    SMTP_PASSWORD: str = "nlotyncinlwodbbh"
+    SMTP_FROM: str = "3417633465@qq.com"
     
     class Config:
         env_file = ".env"

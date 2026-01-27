@@ -47,6 +47,8 @@
 |------|------|------|------|
 | GET | `/api/v1/meetings/{meeting_id}/minutes` | 获取会议纪要 | ✅ |
 | POST | `/api/v1/meetings/{meeting_id}/export` | 导出纪要 | ✅ |
+| POST | `/api/v1/meetings/{meeting_id}/send-email` | 发送纪要邮件 | ✅ |
+| POST | `/api/v1/meetings/{meeting_id}/share` | 分享纪要 | ✅ |
 
 ### 子集合端点
 | 方法 | 端点 | 功能 | 认证 |
@@ -293,6 +295,7 @@ A: 任务创建后会返回 `task_id`，使用该ID查询任务详情获取状�
 3. 触发转录: POST /api/v1/meetings/{id}/transcribe (异步)
 4. 获取纪要: GET /api/v1/meetings/{id}/minutes (转录完成后)
 5. 导出纪要: POST /api/v1/meetings/{id}/export
+6. 发送邮件: POST /api/v1/meetings/{id}/send-email
 ```
 
 ### 文献处理流程
@@ -309,3 +312,28 @@ A: 任务创建后会返回 `task_id`，使用该ID查询任务详情获取状�
 **所有端点**: ✅ 已定义  
 **文档**: ✅ 已完成  
 **下一步**: 填充业务逻辑实现
+
+---
+
+## 📧 邮件发送功能说明
+
+### 接口使用
+- **端点**: `POST /api/v1/meetings/{meeting_id}/send-email`
+- **功能**: 发送指定会议的纪要文件到指定邮箱。
+
+### 请求示例
+```json
+{
+    "recipients": ["user@example.com"],
+    "format": "markdown" // 可选: markdown, pdf, docx
+}
+```
+
+### 文件匹配规则
+系统会自动在 `uploads/` 目录下寻找符合以下命名规范的文件进行发送：
+- 规则: `{meeting_id}_minutes.{后缀}`
+- 示例: 
+  - 请求 `meeting_id` 为 `project_alpha`，`format` 为 `pdf`
+  - 系统寻找文件 `uploads/project_alpha_minutes.pdf`
+
+此设计允许灵活发送任意已生成的纪要文件，只需确保文件名匹配即可。
