@@ -11,10 +11,16 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import UploadFile, HTTPException
 import os
+import shutil
+import whisper
+import imageio_ffmpeg
+from concurrent.futures import ThreadPoolExecutor
 
 from app.utils.logger import get_logger
 from app.services.nlp_service import nlp_service
 from app.services.document_generation_service import document_generation_service
+from app.services.email_service import email_service
+from app.services.audio_service import audio_service  # 导入 AudioService
 from app.core.config import settings
 
 logger = get_logger(__name__)
@@ -28,14 +34,80 @@ MINUTES_STORE: Dict[str, dict] = {}
 class MeetingMinutesService:
     """会议纪要处理服务"""
     
+    _model = None  # 类级缓存，避免每次实例化都重新加载
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.nlp = nlp_service
         self.doc_gen = document_generation_service
     
-    # ============================================================
-    # 第1-3步：上传和转录
-    # ============================================================
+    def _get_model(self):
+        """懒加载 Whisper 模型"""
+        if MeetingMinutesService._model is None:
+            # 设置 ffmpeg 路径，确保 whisper 能找到它
+            ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+            ffmpeg_dir = os.path.dirname(ffmpeg_path)
+            
+            # 确保存在名为 ffmpeg.exe 的文件，因为 whisper 使用 subprocess 调用 "ffmpeg"
+            # Windows下 imageio_ffmpeg 可能提供的是 ffmpeg-win64-v4.2.2.exe 这样的名字
+            target_ffmpeg = os.path.join(ffmpeg_dir, "ffmpeg.exe")
+            if not os.path.exists(target_ffmpeg):
+                try:
+                    shutil.copy(ffmpeg_path, target_ffmpeg)
+                    logger.info(f"Copied ffmpeg to {target_ffmpeg}")
+                except Exception as e:
+                    logger.warning(f"Failed to copy ffmpeg: {e}")
+
+            if ffmpeg_dir not in os.environ["PATH"]:
+                os.environ["PATH"] += os.pathsep + ffmpeg_dir
+            
+            logger.info(f"Loading Whisper model (ffmpeg: {ffmpeg_path})...")
+            # 使用 base 模型，平衡速度和准确性。也可以配置为从环境变量读取模型大小。
+            MeetingMinutesService._model = whisper.load_model("base")
+        return MeetingMinutesService._model
+
+    async def _transcribe_audio(self, file_path: str, task_id: str = None) -> str:
+        """执行音频转录（支持分块处理）"""
+        try:
+            model = self._get_model()
+            logger.info(f"Starting transcription for {file_path}")
+            
+            # 使用 audio_service 进行分块
+            # 分块时长：10分钟 (600秒)，可以有效降低内存占用并提供进度
+            from app.services.audio_service import audio_service
+            loop = asyncio.get_running_loop()
+            
+            # 在 executor 中运行分块，避免阻塞
+            chunks = await loop.run_in_executor(None, audio_service.split_audio, file_path, 600)
+            
+            total_chunks = len(chunks)
+            full_text = []
+            
+            for i, chunk_path in enumerate(chunks):
+                if task_id and task_id in TASK_STATE:
+                    TASK_STATE[task_id]["content"] = f"正在转录... (进度: {i+1}/{total_chunks})"
+                    logger.info(f"[{task_id}] Processing chunk {i+1}/{total_chunks}: {chunk_path}")
+                
+                def run_transcription_chunk():
+                    # 调用 whisper 转录单个分块
+                    return model.transcribe(chunk_path, fp16=False)
+                
+                chunk_result = await loop.run_in_executor(None, run_transcription_chunk)
+                full_text.append(chunk_result["text"])
+                
+                # 可选：清理分块文件
+                # os.remove(chunk_path)
+
+            final_text = "".join(full_text)
+            
+            # 清理分块目录 (可选，保留以便调试)
+            # shutil.rmtree(os.path.dirname(chunks[0]))
+            
+            return final_text
+            
+        except Exception as e:
+            logger.error(f"Transcription failed: {e}")
+            raise
     
     async def upload_and_transcribe(
         self,
@@ -127,23 +199,31 @@ class MeetingMinutesService:
 
     async def _process_full_workflow(self, task_id: str, meeting_id: str, file_path: str) -> None:
         """
-        完整的处理流程：模拟转录 → NLP分析 → 生成纪要
-        
-        这里用 asyncio.sleep 模拟各个阶段的耗时
+        完整的处理流程：真实转录 → NLP分析 → 生成纪要
         """
         try:
-            # 第1步：转录（模拟）
-            await asyncio.sleep(2)
+            # 第1步：转录
+            logger.info(f"[{task_id}] 步骤1: 开始转录")
+            TASK_STATE[task_id]["content"] = "正在处理音频格式..."
+            
+            # 0. 音频格式转换 (确保是 16kHz WAV)
+            # 在线程池中运行音频转换，避免阻塞事件循环
+            from app.services.audio_service import audio_service
+            loop = asyncio.get_running_loop()
+            converted_path = await loop.run_in_executor(None, audio_service.convert_to_wav, file_path)
+            
+            TASK_STATE[task_id]["content"] = "正在进行语音转录 (这可能需要几分钟)..."
+            
+            # 执行真实转录 (使用转换后的文件)
+            transcription_text = await self._transcribe_audio(converted_path, task_id)
+            
             TASK_STATE[task_id]["step"] = 1
             TASK_STATE[task_id]["content"] = "✓ 音视频转录完成\n→ 正在进行语义分析..."
-            logger.info(f"[{task_id}] 步骤1: 转录完成")
-
-            # 生成模拟转录文本
-            transcription_text = self._get_demo_transcription()
             TASK_STATE[task_id]["transcription"] = transcription_text
+            logger.info(f"[{task_id}] 步骤1: 转录完成，文本长度: {len(transcription_text)}")
 
             # 第2步：NLP处理（语义分析、实体识别等）
-            await asyncio.sleep(2)
+            await asyncio.sleep(1) # 给前端一点反应时间
             TASK_STATE[task_id]["step"] = 2
             TASK_STATE[task_id]["content"] = "✓ 音视频转录完成\n✓ 语义分析完成\n→ 正在提取议程和决议..."
             logger.info(f"[{task_id}] 步骤2: NLP分析完成")
@@ -561,9 +641,86 @@ Action Items：
         Returns:
             发送状态
         """
-        # TODO: 使用smtplib或yagmail发送邮件
-        logger.info(f"发送会议纪要邮件: {meeting_id} -> {recipients}")
-        pass
+        logger.info(f"准备发送会议纪要邮件: {meeting_id} -> {recipients}")
+        
+        try:
+            # 1. 确定文件路径
+            filename = f"{meeting_id}_minutes"
+            if format == "pdf":
+                filename += ".pdf"
+            elif format == "docx":
+                filename += ".docx"
+            elif format == "markdown":
+                filename += ".md"
+            else:
+                filename += ".pdf" # 默认PDF
+                
+            file_path = os.path.join(settings.UPLOAD_DIR, filename)
+            
+            # 2. 检查文件是否存在
+            if not os.path.exists(file_path):
+                # 如果文件不存在，尝试从内存或模拟数据中重新生成
+                logger.info(f"文件不存在 {file_path}，尝试重新生成...")
+                
+                # 尝试获取会议数据
+                minutes_data = MINUTES_STORE.get(meeting_id)
+                if not minutes_data:
+                    # 尝试从任务状态获取
+                    for state in TASK_STATE.values():
+                        if state.get("meeting_id") == meeting_id and state.get("nlp_result"):
+                            minutes_data = {
+                                "title": f"会议纪要 - {meeting_id}",
+                                "date": datetime.now().strftime("%Y-%m-%d"),
+                                "participants": ["参与者..."],
+                                **state["nlp_result"]
+                            }
+                            break
+                
+                if minutes_data:
+                    # 重新生成
+                    await self.generate_meeting_minutes(meeting_id, minutes_data, [format])
+                else:
+                    return {"status": "error", "message": f"找不到会议纪要文件: {filename}，且无法重新生成"}
+            
+            if not os.path.exists(file_path):
+                return {"status": "error", "message": f"文件生成失败: {filename}"}
+
+            # 3. 准备邮件内容
+            title = f"会议纪要 - {meeting_id}"
+            summary = "请查看附件中的详细会议纪要。"
+            
+            # 尝试获取更详细的摘要
+            if MINUTES_STORE.get(meeting_id):
+                title = MINUTES_STORE[meeting_id].get("title", title)
+                summary = MINUTES_STORE[meeting_id].get("summary", summary)
+            
+            subject = f"【会议纪要】{title}"
+            content = f"""您好，
+
+这是会议 "{title}" 的纪要文档。
+
+{summary}
+
+完整内容请查阅附件。
+
+此邮件由 AI Office Assistant 自动发送。"""
+
+            # 4. 发送邮件
+            success = email_service.send_email(
+                recipients=recipients,
+                subject=subject,
+                content=content,
+                attachments=[file_path]
+            )
+            
+            if success:
+                return {"status": "success", "message": f"邮件已发送至 {len(recipients)} 位收件人"}
+            else:
+                return {"status": "error", "message": "邮件发送失败，请检查服务器日志"}
+                
+        except Exception as e:
+            logger.error(f"发送邮件流程异常: {e}")
+            return {"status": "error", "message": str(e)}
     
     async def share_minutes(
         self,
