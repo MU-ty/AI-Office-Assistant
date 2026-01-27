@@ -71,7 +71,7 @@ class GenerateMinutesRequest(BaseModel):
 class SendEmailRequest(BaseModel):
     """邮件发送请求"""
     recipients: List[str] = Field(..., description="收件人列表")
-    format: str = Field(default="pdf", description="附件格式: markdown, pdf, docx")
+    format: str = Field(default="pdf", description="附件格式: markdown, pdf, docx, json")
 
 
 class ShareRequest(BaseModel):

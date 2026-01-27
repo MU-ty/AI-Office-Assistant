@@ -5,7 +5,7 @@
 
 from typing import List, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import UploadFile
+from fastapi import UploadFile, HTTPException
 from datetime import datetime
 
 from app.utils.logger import get_logger
@@ -316,8 +316,15 @@ class MeetingService:
         """获取会议参与人列表"""
         try:
             logger.info(f"获取参与人: {meeting_id}")
-            # TODO: 从数据库查询
-            return []
+            # 获取原始结构化数据
+            data = self.minutes_service.get_minutes_data(meeting_id)
+            if not data:
+                logger.info(f"未找到会议数据 (meeting_id={meeting_id})，返回空列表")
+                return []
+                
+            participants = data.get("participants", [])
+            # 格式化为对象列表
+            return [{"name": p, "role": "participant"} for p in participants]
         except Exception as e:
             logger.error(f"获取参与人失败: {e}")
             return []
@@ -326,8 +333,23 @@ class MeetingService:
         """获取会议议程"""
         try:
             logger.info(f"获取议程: {meeting_id}")
-            # TODO: 从数据库查询
-            return []
+            # 获取原始结构化数据
+            data = self.minutes_service.get_minutes_data(meeting_id)
+            if not data:
+                return []
+                
+            agendas = data.get("agendas", [])
+            # 格式化为对象列表
+            formatted_agendas = []
+            for a in agendas:
+                if isinstance(a, dict):
+                    formatted_agendas.append({
+                        "content": a.get("title", "") + ": " + a.get("description", ""),
+                        "status": "pending"
+                    })
+                else:
+                    formatted_agendas.append({"content": str(a), "status": "pending"})
+            return formatted_agendas
         except Exception as e:
             logger.error(f"获取议程失败: {e}")
             return []
@@ -336,8 +358,14 @@ class MeetingService:
         """获取会议决议"""
         try:
             logger.info(f"获取决议: {meeting_id}")
-            # TODO: 从数据库查询
-            return []
+            # 获取原始结构化数据
+            data = self.minutes_service.get_minutes_data(meeting_id)
+            if not data:
+                return []
+                
+            decisions = data.get("decisions", [])
+            # 格式化为对象列表
+            return [{"content": d, "status": "approved"} for d in decisions]
         except Exception as e:
             logger.error(f"获取决议失败: {e}")
             return []
@@ -346,8 +374,31 @@ class MeetingService:
         """获取Action Items"""
         try:
             logger.info(f"获取Action Items: {meeting_id}")
-            # TODO: 从数据库查询
-            return []
+            # 获取原始结构化数据
+            data = self.minutes_service.get_minutes_data(meeting_id)
+            if not data:
+                return []
+                
+            action_items = data.get("action_items", [])
+            
+            # 格式化为对象列表
+            formatted_items = []
+            for item in action_items:
+                if isinstance(item, dict):
+                    formatted_items.append({
+                        "content": item.get("content", ""),
+                        "owner": item.get("owner", "待定"),
+                        "due_date": item.get("due_date", "待定"),
+                        "status": item.get("status", "pending")
+                    })
+                else:
+                    formatted_items.append({
+                        "content": str(item),
+                        "owner": "待定",
+                        "due_date": "待定",
+                        "status": "pending"
+                    })
+            return formatted_items
         except Exception as e:
             logger.error(f"获取Action Items失败: {e}")
             return []

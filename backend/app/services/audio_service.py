@@ -44,6 +44,14 @@ class AudioService:
         if output_path is None:
             output_path = os.path.splitext(input_path)[0] + ".wav"
             
+        # 检查输入输出是否为同一文件
+        final_output_path = output_path
+        temp_output_path = None
+        if os.path.abspath(input_path) == os.path.abspath(output_path):
+            base, ext = os.path.splitext(output_path)
+            temp_output_path = f"{base}_temp{ext}"
+            output_path = temp_output_path
+            
         try:
             logger.info(f"正在转换音频: {input_path} -> {output_path}")
             
@@ -62,6 +70,14 @@ class AudioService:
             
             # 执行命令
             subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            
+            # 如果使用了临时文件，替换原文件
+            if temp_output_path:
+                if os.path.exists(final_output_path):
+                    os.remove(final_output_path)
+                os.rename(temp_output_path, final_output_path)
+                output_path = final_output_path
+                logger.info(f"覆盖原文件: {final_output_path}")
             
             logger.info(f"音频转换成功: {output_path}")
             return output_path
