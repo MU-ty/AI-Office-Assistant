@@ -64,6 +64,7 @@ openai-whisper = ">=20231117"
 ffmpeg-python = ">=0.2.0"
 pydub = ">=0.25.1"
 imageio-ffmpeg = ">=0.4.9"
+dashscope = ">=1.14.0"
 
 # 文件处理
 pydantic-extra-types = ">=2.3.0"

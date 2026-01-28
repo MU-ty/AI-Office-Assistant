@@ -21,6 +21,7 @@ from app.services.nlp_service import nlp_service
 from app.services.document_generation_service import document_generation_service
 from app.services.email_service import email_service
 from app.services.audio_service import audio_service  # 导入 AudioService
+from app.services.aliyun_asr_service import aliyun_asr_service # 导入阿里云 ASR 服务
 from app.services.llm_service import llm_service  # 导入 LLMService
 from app.core.config import settings
 
@@ -226,8 +227,16 @@ class MeetingMinutesService:
             
             TASK_STATE[task_id]["content"] = "正在进行语音转录 (这可能需要几分钟)..."
             
-            # 执行真实转录 (使用转换后的文件)
-            transcription_result = await self._transcribe_audio(converted_path, task_id)
+            # 选择转录引擎：优先使用阿里云（如果配置了 API Key），否则使用本地 Whisper
+            if settings.QWEN_API_KEY:
+                logger.info(f"[{task_id}] 使用阿里云 ASR 转录引擎")
+                TASK_STATE[task_id]["content"] = "正在使用阿里云 ASR 进行转录..."
+                transcription_result = await aliyun_asr_service.transcribe_file(converted_path)
+            else:
+                logger.info(f"[{task_id}] 使用本地 Whisper 转录引擎")
+                # 执行真实转录 (使用转换后的文件)
+                transcription_result = await self._transcribe_audio(converted_path, task_id)
+            
             raw_text = transcription_result["text"]
             segments = transcription_result["segments"]
             
