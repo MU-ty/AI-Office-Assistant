@@ -797,50 +797,77 @@ Action Items：
         """
         logger.info(f"导出会议纪要: {meeting_id} (格式: {format})")
         
-        # 1. 确定文件路径
-        filename = f"{meeting_id}_minutes"
-        if format == "pdf":
-            filename += ".pdf"
-        elif format == "docx":
-            filename += ".docx"
-        elif format == "markdown":
-            filename += ".md"
-        elif format == "json":
-            filename += ".json"
-        
-        file_path = os.path.join(settings.UPLOAD_DIR, filename)
-        
-        # 2. 如果文件不存在，尝试生成
-        if not os.path.exists(file_path):
-            # 尝试获取数据
-            minutes_data = MINUTES_STORE.get(meeting_id)
-            if not minutes_data:
-                # 尝试从 TASK_STATE 恢复
-                for state in TASK_STATE.values():
-                    if state.get("meeting_id") == meeting_id and state.get("nlp_result"):
-                         minutes_data = {
+        # 1. 获取会议纪要数据
+        minutes_record = MINUTES_STORE.get(meeting_id)
+        if not minutes_record:
+            # 尝试从 TASK_STATE 恢复
+            for state in TASK_STATE.values():
+                if state.get("meeting_id") == meeting_id:
+                    if state.get("minutes"):
+                        minutes_record = {
+                            "meeting_id": meeting_id,
                             "title": f"会议纪要 - {meeting_id}",
-                            "date": datetime.now().strftime("%Y-%m-%d"),
-                            "participants": ["参与者..."],
-                            **state["nlp_result"]
+                            "minutes": state.get("minutes"),
+                            "original_data": state.get("nlp_result", {})
                         }
-                         break
-            
-            if minutes_data:
-                await self.generate_meeting_minutes(meeting_id, minutes_data, [format])
-            else:
-                 raise HTTPException(status_code=404, detail="meeting_minutes_not_found")
+                        break
         
-        # 3. 返回文件信息
-        if os.path.exists(file_path):
+        if not minutes_record:
+            raise HTTPException(status_code=404, detail="meeting_minutes_not_found")
+        
+        # 2. 准备会议数据
+        original_data = minutes_record.get("original_data", {})
+        title = minutes_record.get("title", f"会议纪要 - {meeting_id}")
+        
+        # 3. 根据格式生成文件
+        filename = f"meeting_{meeting_id}_minutes"
+        
+        if format == "markdown":
+            # Markdown 直接返回内容
+            content = minutes_record.get("minutes", "")
             return {
                 "meeting_id": meeting_id,
                 "format": format,
-                "file_path": file_path,
-                "filename": filename
+                "content": content,
+                "filename": f"{filename}.md"
             }
+        
+        elif format == "pdf":
+            # 生成 PDF 文件
+            filename_pdf = f"{filename}.pdf"
+            file_path = os.path.join(settings.UPLOAD_DIR, filename_pdf)
+            
+            success = self.doc_gen.generate_pdf(title, original_data, file_path)
+            if success:
+                # 返回相对路径用于下载
+                return {
+                    "meeting_id": meeting_id,
+                    "format": format,
+                    "file_path": f"/uploads/{filename_pdf}",
+                    "filename": filename_pdf
+                }
+            else:
+                raise HTTPException(status_code=500, detail="pdf_generation_failed")
+        
+        elif format == "docx":
+            # 生成 Word 文档
+            filename_docx = f"{filename}.docx"
+            file_path = os.path.join(settings.UPLOAD_DIR, filename_docx)
+            
+            success = self.doc_gen.generate_docx(title, original_data, file_path)
+            if success:
+                # 返回相对路径用于下载
+                return {
+                    "meeting_id": meeting_id,
+                    "format": format,
+                    "file_path": f"/uploads/{filename_docx}",
+                    "filename": filename_docx
+                }
+            else:
+                raise HTTPException(status_code=500, detail="docx_generation_failed")
+        
         else:
-             raise HTTPException(status_code=500, detail="export_failed")
+            raise HTTPException(status_code=400, detail=f"unsupported_format: {format}")
     
     async def send_minutes_email(
         self,

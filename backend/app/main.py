@@ -11,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
+import os
 
 from app.core.config import settings
 from app.core.database import init_db, get_db
@@ -144,6 +146,11 @@ async def request_logging_middleware(request: Request, call_next):
 # ============================================================
 # 路由注册
 # ============================================================
+
+# 静态文件服务 - 用于下载生成的文档
+if not os.path.exists(settings.UPLOAD_DIR):
+    os.makedirs(settings.UPLOAD_DIR)
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # 健康检查
 app.include_router(health.router, tags=["Health"])
