@@ -1,0 +1,4 @@
+2026-01-28 10:39:25 | app.services.speaker_diarization_service | INFO     | diarize:37 | 开始声纹识别: ./uploads\meeting_1769567947_20260128_103907_test.wav, 片段数: 1
+2026-01-28 10:40:09 | app.services.speaker_diarization_service | ERROR    | diarize:84 | 声纹识别失败: Found array with 1 sample(s) (shape=(1, 20)) while a minimum of 2 is required by AgglomerativeClustering.
+2026-01-28 12:49:09 | app.services.speaker_diarization_service | INFO     | diarize:37 | 开始声纹识别: ./uploads\meeting_1769575726_20260128_124846_test.wav, 片段数: 1
+2026-01-28 12:49:15 | app.services.speaker_diarization_service | ERROR    | diarize:84 | 声纹识别失败: Found array with 1 sample(s) (shape=(1, 20)) while a minimum of 2 is required by AgglomerativeClustering.

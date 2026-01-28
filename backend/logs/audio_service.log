@@ -1,0 +1,28 @@
+2026-01-28 10:20:05 | app.services.audio_service | INFO     | convert_to_wav:56 | 正在转换音频: ./uploads\meeting_1769566805_20260128_102005_test.mp4 -> ./uploads\meeting_1769566805_20260128_102005_test.wav
+2026-01-28 10:20:06 | app.services.audio_service | INFO     | convert_to_wav:82 | 音频转换成功: ./uploads\meeting_1769566805_20260128_102005_test.wav
+2026-01-28 10:20:11 | app.services.audio_service | INFO     | split_audio:123 | 开始音频分块: ./uploads\meeting_1769566805_20260128_102005_test.wav, 块大小: 600s
+2026-01-28 10:20:11 | app.services.audio_service | INFO     | split_audio:161 | 音频分块完成，共生成 1 个分块
+2026-01-28 10:22:51 | app.services.audio_service | INFO     | convert_to_wav:56 | 正在转换音频: ./uploads\meeting_1769566971_20260128_102251_test.mp4 -> ./uploads\meeting_1769566971_20260128_102251_test.wav
+2026-01-28 10:22:51 | app.services.audio_service | INFO     | convert_to_wav:82 | 音频转换成功: ./uploads\meeting_1769566971_20260128_102251_test.wav
+2026-01-28 10:22:51 | app.services.audio_service | INFO     | split_audio:123 | 开始音频分块: ./uploads\meeting_1769566971_20260128_102251_test.wav, 块大小: 600s
+2026-01-28 10:22:52 | app.services.audio_service | INFO     | split_audio:161 | 音频分块完成，共生成 1 个分块
+2026-01-28 10:27:04 | app.services.audio_service | INFO     | convert_to_wav:56 | 正在转换音频: ./uploads\meeting_1769567224_20260128_102704_test.mp4 -> ./uploads\meeting_1769567224_20260128_102704_test.wav
+2026-01-28 10:27:04 | app.services.audio_service | INFO     | convert_to_wav:82 | 音频转换成功: ./uploads\meeting_1769567224_20260128_102704_test.wav
+2026-01-28 10:27:04 | app.services.audio_service | INFO     | split_audio:123 | 开始音频分块: ./uploads\meeting_1769567224_20260128_102704_test.wav, 块大小: 600s
+2026-01-28 10:27:04 | app.services.audio_service | INFO     | split_audio:161 | 音频分块完成，共生成 1 个分块
+2026-01-28 10:30:41 | app.services.audio_service | INFO     | convert_to_wav:56 | 正在转换音频: ./uploads\meeting_1769567440_20260128_103041_test.mp4 -> ./uploads\meeting_1769567440_20260128_103041_test.wav
+2026-01-28 10:30:41 | app.services.audio_service | INFO     | convert_to_wav:82 | 音频转换成功: ./uploads\meeting_1769567440_20260128_103041_test.wav
+2026-01-28 10:30:41 | app.services.audio_service | INFO     | split_audio:123 | 开始音频分块: ./uploads\meeting_1769567440_20260128_103041_test.wav, 块大小: 600s
+2026-01-28 10:30:41 | app.services.audio_service | INFO     | split_audio:161 | 音频分块完成，共生成 1 个分块
+2026-01-28 10:35:12 | app.services.audio_service | INFO     | convert_to_wav:56 | 正在转换音频: ./uploads\meeting_1769567712_20260128_103512_test.mp4 -> ./uploads\meeting_1769567712_20260128_103512_test.wav
+2026-01-28 10:35:12 | app.services.audio_service | INFO     | convert_to_wav:82 | 音频转换成功: ./uploads\meeting_1769567712_20260128_103512_test.wav
+2026-01-28 10:35:12 | app.services.audio_service | INFO     | split_audio:123 | 开始音频分块: ./uploads\meeting_1769567712_20260128_103512_test.wav, 块大小: 600s
+2026-01-28 10:35:12 | app.services.audio_service | INFO     | split_audio:161 | 音频分块完成，共生成 1 个分块
+2026-01-28 10:39:07 | app.services.audio_service | INFO     | convert_to_wav:56 | 正在转换音频: ./uploads\meeting_1769567947_20260128_103907_test.mp4 -> ./uploads\meeting_1769567947_20260128_103907_test.wav
+2026-01-28 10:39:07 | app.services.audio_service | INFO     | convert_to_wav:82 | 音频转换成功: ./uploads\meeting_1769567947_20260128_103907_test.wav
+2026-01-28 10:39:07 | app.services.audio_service | INFO     | split_audio:123 | 开始音频分块: ./uploads\meeting_1769567947_20260128_103907_test.wav, 块大小: 600s
+2026-01-28 10:39:07 | app.services.audio_service | INFO     | split_audio:161 | 音频分块完成，共生成 1 个分块
+2026-01-28 12:48:46 | app.services.audio_service | INFO     | convert_to_wav:56 | 正在转换音频: ./uploads\meeting_1769575726_20260128_124846_test.mp4 -> ./uploads\meeting_1769575726_20260128_124846_test.wav
+2026-01-28 12:48:46 | app.services.audio_service | INFO     | convert_to_wav:82 | 音频转换成功: ./uploads\meeting_1769575726_20260128_124846_test.wav
+2026-01-28 12:48:48 | app.services.audio_service | INFO     | split_audio:123 | 开始音频分块: ./uploads\meeting_1769575726_20260128_124846_test.wav, 块大小: 600s
+2026-01-28 12:48:48 | app.services.audio_service | INFO     | split_audio:161 | 音频分块完成，共生成 1 个分块

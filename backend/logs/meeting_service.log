@@ -1,0 +1,9 @@
+2026-01-28 10:20:05 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-28 10:22:51 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-28 10:27:04 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-28 10:30:40 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-28 10:35:12 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-28 10:39:07 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-28 10:40:15 | app.services.meeting_service | INFO     | get_minutes:220 | 获取会议纪要: meeting_1769567947
+2026-01-28 12:48:46 | app.services.meeting_service | INFO     | create_meeting:38 | 创建会议: test.mp4
+2026-01-28 12:49:21 | app.services.meeting_service | INFO     | get_minutes:220 | 获取会议纪要: meeting_1769575726

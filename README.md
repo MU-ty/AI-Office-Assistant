@@ -15,3 +15,15 @@
 - 🎨 **PPT智能生成** - 从内容自动生成专业演示文稿
 - 📋 **实习周报生成** - 智能化生成周报，记录实习进度
 
+## 🚀 快速开始
+
+### 后端
+
+`cd backend
+python -m uvicorn app.main:app --port 8000 --reload`
+
+### 前端
+
+`
+cd frontend
+pnpm run dev`

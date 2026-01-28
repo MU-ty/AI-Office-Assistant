@@ -1,0 +1,100 @@
+2026-01-28 10:20:05 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:146 | 文件保存成功: ./uploads\meeting_1769566805_20260128_102005_test.mp4
+2026-01-28 10:20:05 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:192 | 转录任务已启动: task_meeting_1769566805_1769566805
+2026-01-28 10:20:05 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:218 | [task_meeting_1769566805_1769566805] 步骤1: 开始转录
+2026-01-28 10:20:06 | app.services.meeting_minutes_service | INFO     | _get_model:58 | Copied ffmpeg to F:\officeAgent\AI-Office-Assistant\.venv\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg.exe
+2026-01-28 10:20:06 | app.services.meeting_minutes_service | INFO     | _get_model:65 | Loading Whisper model (ffmpeg: F:\officeAgent\AI-Office-Assistant\.venv\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe)...
+2026-01-28 10:20:11 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:74 | Starting transcription for ./uploads\meeting_1769566805_20260128_102005_test.wav
+2026-01-28 10:20:11 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:92 | [task_meeting_1769566805_1769566805] Processing chunk 1/1: ./uploads\meeting_1769566805_20260128_102005_test_chunks\chunk_000.wav
+2026-01-28 10:20:16 | app.services.meeting_minutes_service | ERROR    | _process_full_workflow:315 | 处理流程出错 [task_meeting_1769566805_1769566805]: No module named 'librosa'
+Traceback (most recent call last):
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\meeting_minutes_service.py", line 236, in _process_full_workflow
+    from app.services.speaker_diarization_service import speaker_diarization_service
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\speaker_diarization_service.py", line 4, in <module>
+    import librosa
+ModuleNotFoundError: No module named 'librosa'
+2026-01-28 10:22:51 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:146 | 文件保存成功: ./uploads\meeting_1769566971_20260128_102251_test.mp4
+2026-01-28 10:22:51 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:192 | 转录任务已启动: task_meeting_1769566971_1769566971
+2026-01-28 10:22:51 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:218 | [task_meeting_1769566971_1769566971] 步骤1: 开始转录
+2026-01-28 10:22:51 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:74 | Starting transcription for ./uploads\meeting_1769566971_20260128_102251_test.wav
+2026-01-28 10:22:52 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:92 | [task_meeting_1769566971_1769566971] Processing chunk 1/1: ./uploads\meeting_1769566971_20260128_102251_test_chunks\chunk_000.wav
+2026-01-28 10:22:54 | app.services.meeting_minutes_service | ERROR    | _process_full_workflow:315 | 处理流程出错 [task_meeting_1769566971_1769566971]: No module named 'librosa'
+Traceback (most recent call last):
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\meeting_minutes_service.py", line 236, in _process_full_workflow
+    from app.services.speaker_diarization_service import speaker_diarization_service
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\speaker_diarization_service.py", line 4, in <module>
+    import librosa
+ModuleNotFoundError: No module named 'librosa'
+2026-01-28 10:27:04 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:146 | 文件保存成功: ./uploads\meeting_1769567224_20260128_102704_test.mp4
+2026-01-28 10:27:04 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:192 | 转录任务已启动: task_meeting_1769567224_1769567224
+2026-01-28 10:27:04 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:218 | [task_meeting_1769567224_1769567224] 步骤1: 开始转录
+2026-01-28 10:27:04 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:74 | Starting transcription for ./uploads\meeting_1769567224_20260128_102704_test.wav
+2026-01-28 10:27:04 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:92 | [task_meeting_1769567224_1769567224] Processing chunk 1/1: ./uploads\meeting_1769567224_20260128_102704_test_chunks\chunk_000.wav
+2026-01-28 10:27:07 | app.services.meeting_minutes_service | ERROR    | _process_full_workflow:315 | 处理流程出错 [task_meeting_1769567224_1769567224]: No module named 'librosa'
+Traceback (most recent call last):
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\meeting_minutes_service.py", line 236, in _process_full_workflow
+    from app.services.speaker_diarization_service import speaker_diarization_service
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\speaker_diarization_service.py", line 4, in <module>
+    import librosa
+ModuleNotFoundError: No module named 'librosa'
+2026-01-28 10:30:41 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:146 | 文件保存成功: ./uploads\meeting_1769567440_20260128_103041_test.mp4
+2026-01-28 10:30:41 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:192 | 转录任务已启动: task_meeting_1769567440_1769567441
+2026-01-28 10:30:41 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:218 | [task_meeting_1769567440_1769567441] 步骤1: 开始转录
+2026-01-28 10:30:41 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:74 | Starting transcription for ./uploads\meeting_1769567440_20260128_103041_test.wav
+2026-01-28 10:30:41 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:92 | [task_meeting_1769567440_1769567441] Processing chunk 1/1: ./uploads\meeting_1769567440_20260128_103041_test_chunks\chunk_000.wav
+2026-01-28 10:30:43 | app.services.meeting_minutes_service | ERROR    | _process_full_workflow:315 | 处理流程出错 [task_meeting_1769567440_1769567441]: No module named 'librosa'
+Traceback (most recent call last):
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\meeting_minutes_service.py", line 236, in _process_full_workflow
+    from app.services.speaker_diarization_service import speaker_diarization_service
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\speaker_diarization_service.py", line 4, in <module>
+    import librosa
+ModuleNotFoundError: No module named 'librosa'
+2026-01-28 10:35:12 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:146 | 文件保存成功: ./uploads\meeting_1769567712_20260128_103512_test.mp4
+2026-01-28 10:35:12 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:192 | 转录任务已启动: task_meeting_1769567712_1769567712
+2026-01-28 10:35:12 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:218 | [task_meeting_1769567712_1769567712] 步骤1: 开始转录
+2026-01-28 10:35:12 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:74 | Starting transcription for ./uploads\meeting_1769567712_20260128_103512_test.wav
+2026-01-28 10:35:12 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:92 | [task_meeting_1769567712_1769567712] Processing chunk 1/1: ./uploads\meeting_1769567712_20260128_103512_test_chunks\chunk_000.wav
+2026-01-28 10:35:15 | app.services.meeting_minutes_service | ERROR    | _process_full_workflow:315 | 处理流程出错 [task_meeting_1769567712_1769567712]: No module named 'lazy_loader'
+Traceback (most recent call last):
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\meeting_minutes_service.py", line 236, in _process_full_workflow
+    from app.services.speaker_diarization_service import speaker_diarization_service
+  File "F:\officeAgent\AI-Office-Assistant\backend\app\services\speaker_diarization_service.py", line 4, in <module>
+    import librosa
+  File "F:\officeAgent\AI-Office-Assistant\.venv\Lib\site-packages\librosa\__init__.py", line 212, in <module>
+    import lazy_loader as lazy
+ModuleNotFoundError: No module named 'lazy_loader'
+2026-01-28 10:39:07 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:146 | 文件保存成功: ./uploads\meeting_1769567947_20260128_103907_test.mp4
+2026-01-28 10:39:07 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:192 | 转录任务已启动: task_meeting_1769567947_1769567947
+2026-01-28 10:39:07 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:218 | [task_meeting_1769567947_1769567947] 步骤1: 开始转录
+2026-01-28 10:39:07 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:74 | Starting transcription for ./uploads\meeting_1769567947_20260128_103907_test.wav
+2026-01-28 10:39:07 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:92 | [task_meeting_1769567947_1769567947] Processing chunk 1/1: ./uploads\meeting_1769567947_20260128_103907_test_chunks\chunk_000.wav
+2026-01-28 10:40:09 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:258 | [task_meeting_1769567947_1769567947] 步骤1: 转录及声纹识别完成，文本长度: 40
+2026-01-28 10:40:10 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:264 | [task_meeting_1769567947_1769567947] 步骤2: NLP分析完成
+2026-01-28 10:40:10 | app.services.meeting_minutes_service | INFO     | process_transcription:381 | 开始处理转录文本: meeting_1769567947
+2026-01-28 10:40:10 | app.services.meeting_minutes_service | INFO     | process_transcription:386 | 文本分句完成: 1句
+2026-01-28 10:40:10 | app.services.meeting_minutes_service | INFO     | process_transcription:390 | 关键词提取完成: 0个
+2026-01-28 10:40:10 | app.services.meeting_minutes_service | INFO     | process_transcription:394 | 关键句提取完成: 1句
+2026-01-28 10:40:10 | app.services.meeting_minutes_service | INFO     | process_transcription:398 | 实体识别完成: {'persons': [], 'organizations': [], 'locations': [], 'dates': [], 'times': []}
+2026-01-28 10:40:10 | app.services.meeting_minutes_service | INFO     | process_transcription:448 | LLM 结果为空或不完整，使用规则提取进行兜底
+2026-01-28 10:40:12 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:274 | [task_meeting_1769567947_1769567947] 步骤3: 关键信息提取完成
+2026-01-28 10:40:14 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:692 | Markdown纪要已生成: ./uploads\meeting_1769567947_minutes.md
+2026-01-28 10:40:14 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:718 | JSON纪要已生成: ./uploads\meeting_1769567947_minutes.json
+2026-01-28 10:40:14 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:312 | [task_meeting_1769567947_1769567947] 步骤4: 纪要生成完成，任务完成
+2026-01-28 12:48:46 | app.services.meeting_minutes_service | INFO     | upload_and_transcribe:147 | 文件保存成功: ./uploads\meeting_1769575726_20260128_124846_test.mp4
+2026-01-28 12:48:46 | app.services.meeting_minutes_service | INFO     | _start_transcription_task:193 | 转录任务已启动: task_meeting_1769575726_1769575726
+2026-01-28 12:48:46 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:219 | [task_meeting_1769575726_1769575726] 步骤1: 开始转录
+2026-01-28 12:48:46 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:236 | [task_meeting_1769575726_1769575726] 使用本地 Whisper 转录引擎
+2026-01-28 12:48:46 | app.services.meeting_minutes_service | INFO     | _get_model:66 | Loading Whisper model (ffmpeg: F:\officeAgent\AI-Office-Assistant\.venv\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe)...
+2026-01-28 12:48:48 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:75 | Starting transcription for ./uploads\meeting_1769575726_20260128_124846_test.wav
+2026-01-28 12:48:48 | app.services.meeting_minutes_service | INFO     | _transcribe_audio:93 | [task_meeting_1769575726_1769575726] Processing chunk 1/1: ./uploads\meeting_1769575726_20260128_124846_test_chunks\chunk_000.wav
+2026-01-28 12:49:15 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:267 | [task_meeting_1769575726_1769575726] 步骤1: 转录及声纹识别完成，文本长度: 40
+2026-01-28 12:49:16 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:273 | [task_meeting_1769575726_1769575726] 步骤2: NLP分析完成
+2026-01-28 12:49:16 | app.services.meeting_minutes_service | INFO     | process_transcription:390 | 开始处理转录文本: meeting_1769575726
+2026-01-28 12:49:16 | app.services.meeting_minutes_service | INFO     | process_transcription:395 | 文本分句完成: 1句
+2026-01-28 12:49:16 | app.services.meeting_minutes_service | INFO     | process_transcription:399 | 关键词提取完成: 0个
+2026-01-28 12:49:16 | app.services.meeting_minutes_service | INFO     | process_transcription:403 | 关键句提取完成: 1句
+2026-01-28 12:49:16 | app.services.meeting_minutes_service | INFO     | process_transcription:407 | 实体识别完成: {'persons': [], 'organizations': [], 'locations': [], 'dates': [], 'times': []}
+2026-01-28 12:49:16 | app.services.meeting_minutes_service | INFO     | process_transcription:457 | LLM 结果为空或不完整，使用规则提取进行兜底
+2026-01-28 12:49:18 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:283 | [task_meeting_1769575726_1769575726] 步骤3: 关键信息提取完成
+2026-01-28 12:49:20 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:701 | Markdown纪要已生成: ./uploads\meeting_1769575726_minutes.md
+2026-01-28 12:49:20 | app.services.meeting_minutes_service | INFO     | generate_meeting_minutes:727 | JSON纪要已生成: ./uploads\meeting_1769575726_minutes.json
+2026-01-28 12:49:20 | app.services.meeting_minutes_service | INFO     | _process_full_workflow:321 | [task_meeting_1769575726_1769575726] 步骤4: 纪要生成完成，任务完成
