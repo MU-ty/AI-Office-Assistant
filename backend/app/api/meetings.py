@@ -30,12 +30,14 @@ Endpoints:
 """
 
 from fastapi import APIRouter, Depends, status, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.services.meeting_service import MeetingService
+from app.services.meeting_streaming_service import meeting_streaming_service
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -296,6 +298,71 @@ async def get_meeting_minutes(
     """
     service = MeetingService(db)
     return await service.get_minutes(meeting_id)
+
+
+@router.get("/{meeting_id}/minutes/stream")
+async def stream_meeting_minutes(
+    meeting_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    流式获取会议纪要生成过程
+    
+    通过 SSE 实时返回纪要生成进度，包括：
+    1. streaming: 正在吐字
+    2. processing: 处理和保存中
+    3. completed: 完成（带文件路径）
+    4. error/save_error: 错误信息
+    
+    流程改进：
+    - 完整吐字后再保存文件
+    - 文件保存完成后才发送完成信号
+    - 最后断开连接
+    """
+    service = MeetingService(db)
+    
+    # 获取会议数据和 LLM 生成的流
+    try:
+        meeting_data = await service.get_meeting(meeting_id)
+        if not meeting_data or meeting_data.get("error"):
+            return StreamingResponse(
+                _error_stream("会议不存在"),
+                media_type="text/event-stream"
+            )
+        
+        # 获取 LLM 流式生成器（需要在 service 中实现）
+        llm_stream = service.get_llm_stream(meeting_id, meeting_data)
+        
+        # 使用 MeetingStreamingService 进行流式生成和保存
+        return StreamingResponse(
+            meeting_streaming_service.generate_minutes_stream(
+                meeting_id=meeting_id,
+                meeting_data=meeting_data,
+                llm_stream_generator=llm_stream
+            ),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive"
+            }
+        )
+    except Exception as e:
+        logger.error(f"流式获取纪要失败: {e}")
+        return StreamingResponse(
+            _error_stream(str(e)),
+            media_type="text/event-stream"
+        )
+
+
+async def _error_stream(error_msg: str):
+    """生成错误流"""
+    import json
+    error_data = {
+        "status": "error",
+        "error": error_msg
+    }
+    yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
 
 
 @router.post("/{meeting_id}/export", response_model=dict)
