@@ -19,15 +19,14 @@
 
 ### 后端
 
-`cd backend
+`cd backend `
 
 
-python -m uvicorn app.main:app --port 8000 --reload`
+`python -m uvicorn app.main:app --port 8000 --reload`
 
 ### 前端
 
-`
-cd frontend
+`cd frontend`
 
 
-pnpm run dev`
+`pnpm run dev`
