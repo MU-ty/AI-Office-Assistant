@@ -24,7 +24,8 @@ from app.api import (
     translation_tasks,
     ppt_projects,
     weekly_reports,
-    stream  # 新增: 流式处理服务
+    stream,  # 新增: 流式处理服务
+    asr  # 新增: 语音识别服务
 )
 
 logger = get_logger(__name__)
@@ -152,6 +153,13 @@ app.include_router(
     stream.router,
     prefix="/api/v1/stream",
     tags=["Stream"]
+)
+
+# 语音识别服务 (新增)
+app.include_router(
+    asr.router,
+    prefix="/api/v1/asr",
+    tags=["ASR"]
 )
 
 # 用户认证模块
