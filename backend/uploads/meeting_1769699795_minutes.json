@@ -1,0 +1,60 @@
+{
+  "title": "会议纪要 - meeting_1769699795",
+  "date": "2026-01-29 23:17:13",
+  "participants": [],
+  "meeting_id": "meeting_1769699795",
+  "sentences": [
+    "Unknown Speaker: A I会议助手工作流执行面板会议纪要生成模块测试"
+  ],
+  "paragraphs": [
+    "Unknown Speaker: A I会议助手工作流执行面板会议纪要生成模块测试。"
+  ],
+  "keywords": [],
+  "key_sentences": [
+    "Unknown Speaker: A I会议助手工作流执行面板会议纪要生成模块测试"
+  ],
+  "entities": {
+    "persons": [],
+    "organizations": [],
+    "locations": [],
+    "dates": [],
+    "times": []
+  },
+  "topics": [
+    "AI会议助手",
+    "工作流执行面板",
+    "会议纪要生成模块测试"
+  ],
+  "transcription_text": "Unknown Speaker: A I会议助手工作流执行面板会议纪要生成模块测试。",
+  "agendas": [
+    {
+      "title": "纪要生成模块功能测试",
+      "description": "验证会议转录文本到结构化纪要的自动解析能力"
+    }
+  ],
+  "decisions": [],
+  "action_items": [
+    {
+      "content": "执行会议纪要生成模块的端到端测试用例",
+      "owner": "待定",
+      "due_date": "待定"
+    },
+    {
+      "content": "校验输出JSON格式的完整性与字段准确性",
+      "owner": "待定",
+      "due_date": "待定"
+    }
+  ],
+  "key_points": [
+    "测试对象为AI会议助手的工作流执行面板",
+    "核心任务是会议纪要生成模块的功能验证"
+  ],
+  "summary": "本次会议为A I会议助手工作流执行面板中会议纪要生成模块的测试会议，聚焦于功能验证与流程确认。",
+  "text_stats": {
+    "char_count": 42,
+    "word_count": 6,
+    "sentence_count": 1,
+    "paragraph_count": 1,
+    "avg_sentence_length": 42.0
+  }
+}
