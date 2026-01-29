@@ -1,0 +1,39 @@
+# Python 相关（核心：缓存+编译文件，解决之前的.pyc冲突）
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+
+# 虚拟环境（本地开发环境，绝对不提交）
+.venv/
+venv/
+env/
+*.env
+
+# 日志文件（解决之前的文件占用问题，不跟踪所有.log）
+backend/logs/
+*.log
+logs/
+
+# 前端依赖（不跟踪node_modules和包锁文件，避免提交大文件）
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# 操作系统临时文件
+.DS_Store
+Thumbs.db
+*.tmp
+
+# 编辑器/IDE配置（本地开发配置，无需共享）
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 构建/打包产物（若有前端/后端打包文件，如dist/、build/）
+dist/
+build/
