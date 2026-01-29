@@ -12,8 +12,9 @@ venv/
 env/
 *.env
 
-# 日志文件（解决之前的文件占用问题，不跟踪所有.log）
+# 后端专属目录（日志+文件上传，解决文件占用/无关文件跟踪问题）
 backend/logs/
+backend/uploads/  # 后端文件上传目录（忽略所有上传的业务/用户文件）
 *.log
 logs/
 
@@ -22,8 +23,7 @@ node_modules/
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
-#后端
-backend/uploads/
+
 # 操作系统临时文件
 .DS_Store
 Thumbs.db
