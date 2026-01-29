@@ -113,7 +113,7 @@ class Settings(BaseSettings):
     # LLM API
     OPENAI_API_KEY: str = ""
     CLAUDE_API_KEY: str = ""
-    QWEN_API_KEY: str = ""
+    QWEN_API_KEY: str = "sk-5fb67d0564fd499f99b8719b4d662b33"
     QWEN_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     QWEN_MODEL_NAME: str = "qwen-plus"
     

@@ -769,3 +769,6 @@
 2026-01-28 12:49:20 | app.main | INFO     | request_logging_middleware:128 | GET /api/v1/meetings/tasks/task_meeting_1769575726_1769575726
 2026-01-28 12:49:21 | app.main | INFO     | request_logging_middleware:128 | GET /api/v1/meetings/tasks/task_meeting_1769575726_1769575726
 2026-01-28 12:49:21 | app.main | INFO     | request_logging_middleware:128 | GET /api/v1/meetings/meeting_1769575726/minutes
+2026-01-29 23:15:27 | app.main | INFO     | lifespan:40 | 🚀 应用启动中...
+2026-01-29 23:15:27 | app.main | INFO     | lifespan:43 | ✅ 数据库初始化完成
+2026-01-29 23:15:40 | app.main | INFO     | lifespan:51 | 🛑 应用关闭中...

@@ -7,3 +7,5 @@
 2026-01-28 12:47:14 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
 2026-01-28 12:48:33 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
 2026-01-28 12:48:38 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
+2026-01-29 23:15:15 | app.core.database | INFO     | <module>:39 | 使用 SQLite 数据库: ./data/office_assistant.db
+2026-01-29 23:15:27 | app.core.database | INFO     | init_db:86 | ✅ 数据库表创建完成
