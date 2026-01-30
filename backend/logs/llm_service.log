@@ -1,3 +1,0 @@
-2026-01-28 10:17:13 | app.services.llm_service | WARNING  | _init_client:25 | QWEN_API_KEY 未配置，LLM 服务将不可用
-2026-01-28 10:18:33 | app.services.llm_service | WARNING  | _init_client:25 | QWEN_API_KEY 未配置，LLM 服务将不可用
-2026-01-28 12:48:38 | app.services.llm_service | WARNING  | _init_client:25 | QWEN_API_KEY 未配置，LLM 服务将不可用

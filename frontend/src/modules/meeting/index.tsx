@@ -1,19 +1,31 @@
 "use client";
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { FileAudio, Loader2, Wand2, Send } from "lucide-react";
+import {
+  FileAudio,
+  Loader2,
+  Wand2,
+  Send,
+  FileText,
+  FileCode,
+  FileType,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useSearchParams } from "next/navigation";
 import { useMeeting } from "./hooks/useMeeting";
 import { MeetingStepper } from "./components/Stepper";
 import { UploadButton } from "./components/Uploader";
 import { MarkdownViewer } from "./components/MarkdownViewer";
+import { DownloadButtons } from "./components/DownloadButtons";
 
 export default function MeetingModule() {
   const searchParams = useSearchParams();
   const meetingIdFromUrl = searchParams.get("meetingId") || undefined;
+
   const {
     steps,
     content,
@@ -32,7 +44,6 @@ export default function MeetingModule() {
     <div className="flex-1 flex gap-0 overflow-hidden w-full h-full border border-slate-200 rounded-lg shadow-lg">
       {/* 左侧边栏 - 工作流区域 */}
       <div className="w-80 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0">
-        {/* 侧边栏头部 */}
         <div className="p-6 border-b border-slate-200 bg-white">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-blue-600 rounded-lg">
@@ -44,18 +55,16 @@ export default function MeetingModule() {
             </div>
           </div>
 
-          {/* 条件渲染：只在处理完成后显示上传按钮 */}
           {isStarted && currentStep === 4 && (
             <div className="mt-4">
               <UploadButton
                 onFileSelect={(file) => startWorkflow(file)}
-                isStarted={false} // 完成状态下按钮不禁用
+                isStarted={false}
               />
             </div>
           )}
         </div>
 
-        {/* 工作流步骤 */}
         <div className="flex-1 p-6 overflow-y-auto">
           <div className="mb-4">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">
@@ -64,7 +73,6 @@ export default function MeetingModule() {
             <MeetingStepper steps={steps} currentStep={currentStep} />
           </div>
 
-          {/* 状态信息 */}
           <div className="mt-6 p-4 bg-white rounded-lg border border-slate-200">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-slate-700">状态</span>
@@ -99,7 +107,6 @@ export default function MeetingModule() {
 
       {/* 右侧聊天区域 */}
       <div className="flex-1 flex flex-col bg-white">
-        {/* 聊天区头部 */}
         <div className="h-16 border-b border-slate-200 flex items-center justify-between px-6">
           <div>
             <h1 className="font-semibold text-slate-800">会议纪要生成</h1>
@@ -108,7 +115,6 @@ export default function MeetingModule() {
             </p>
           </div>
           <div className="flex gap-2">
-            {/* 查看完整纪要按钮 */}
             {currentStep === 4 && minutes && (
               <MarkdownViewer
                 content={minutes}
@@ -120,11 +126,9 @@ export default function MeetingModule() {
           </div>
         </div>
 
-        {/* 聊天消息区域 */}
         <ScrollArea className="flex-1 p-6">
           <div className="max-w-6xl mx-auto space-y-4">
             {!isStarted && !minutes && !summary && !content ? (
-              /* 初始状态 - 上传提示 */
               <div className="flex flex-col items-center justify-center py-20">
                 <div className="w-full max-w-md">
                   <div className="text-center mb-8">
@@ -145,18 +149,14 @@ export default function MeetingModule() {
                 </div>
               </div>
             ) : (
-              /* 消息流 */
               <>
-                {/* 用户消息 */}
                 <div className="flex justify-end">
                   <div className="max-w-[85%] bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-3">
                     <p className="text-sm">上传了会议音频文件并开始分析</p>
                   </div>
                 </div>
 
-                {/* AI 响应 - 进度 & 实时纪要 */}
                 <div className="space-y-3">
-                  {/* 处理进度 */}
                   {content && (
                     <div className="flex justify-start">
                       <div className="max-w-[95%]">
@@ -180,7 +180,6 @@ export default function MeetingModule() {
                     </div>
                   )}
 
-                  {/* 执行摘要 */}
                   {summary && (
                     <div className="flex justify-start">
                       <div className="max-w-[95%]">
@@ -196,7 +195,6 @@ export default function MeetingModule() {
                     </div>
                   )}
 
-                  {/* 实时纪要 - 流式显示 */}
                   {minutes && (
                     <div className="flex justify-start">
                       <div className="max-w-[95%]">
@@ -229,7 +227,6 @@ export default function MeetingModule() {
                     </div>
                   )}
 
-                  {/* Loading 提示 - 当还没有数据时 */}
                   {!content && !summary && !minutes && (
                     <div className="flex justify-start">
                       <div className="max-w-[95%] bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-2 text-slate-600">
@@ -244,33 +241,11 @@ export default function MeetingModule() {
           </div>
         </ScrollArea>
 
-        {/* 底部输入区 */}
-        {currentStep === 4 && minutes && (
-          <div className="h-auto border-t border-slate-200 bg-slate-50 p-4 flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const element = document.createElement("a");
-                element.setAttribute(
-                  "href",
-                  "data:text/markdown;charset=utf-8," +
-                    encodeURIComponent(minutes),
-                );
-                element.setAttribute("download", "meeting_minutes.md");
-                element.style.display = "none";
-                document.body.appendChild(element);
-                element.click();
-                document.body.removeChild(element);
-              }}
-            >
-              ↓ 下载 Markdown
-            </Button>
-            <Button variant="outline" size="sm">
-              分享纪要
-            </Button>
-          </div>
-        )}
+        {/* 底部功能区 - 使用新的下载按钮组件 */}
+        <DownloadButtons 
+          meetingId={meetingId} 
+          isVisible={currentStep === 4 && !!minutes} 
+        />
       </div>
     </div>
   );

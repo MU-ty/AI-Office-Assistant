@@ -72,7 +72,7 @@ export function MarkdownViewer({
           查看完整纪要
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="h-full max-w-4xl max-h-[90vh] flex flex-col p-0">
         {/* 头部 */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <div className="flex items-start justify-between">
@@ -124,7 +124,7 @@ export function MarkdownViewer({
         </DialogHeader>
 
         {/* Markdown 内容区域 */}
-        <ScrollArea className="flex-1 px-6 py-4">
+        <ScrollArea className="flex-1 min-h-0 px-6 py-4">
           <article className="prose prose-slate prose-sm max-w-none">
             <ReactMarkdown
               components={{
