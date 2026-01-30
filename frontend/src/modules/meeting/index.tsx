@@ -5,22 +5,26 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { FileAudio, Loader2, Wand2, Send, FileText, FileCode, FileType } from "lucide-react";
+import {
+  FileAudio,
+  Loader2,
+  Wand2,
+  Send,
+  FileText,
+  FileCode,
+  FileType,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useSearchParams } from "next/navigation";
 import { useMeeting } from "./hooks/useMeeting";
 import { MeetingStepper } from "./components/Stepper";
 import { UploadButton } from "./components/Uploader";
 import { MarkdownViewer } from "./components/MarkdownViewer";
-// 导入我们刚才在 api.ts 中定义的接口
-import { exportMeetingMinutes } from "./api";
+import { DownloadButtons } from "./components/DownloadButtons";
 
 export default function MeetingModule() {
   const searchParams = useSearchParams();
   const meetingIdFromUrl = searchParams.get("meetingId") || undefined;
-  
-  // 用于下载按钮的 Loading 状态
-  const [downloadingFormat, setDownloadingFormat] = useState<string | null>(null);
 
   const {
     steps,
@@ -35,54 +39,6 @@ export default function MeetingModule() {
     meetingTitle,
     generatedAt,
   } = useMeeting(meetingIdFromUrl);
-
-  /**
-   * 核心下载逻辑
-   * 处理 Markdown 内容生成与 PDF/Word 文件链接跳转
-   */
-  const handleDownload = async (format: 'markdown' | 'pdf' | 'docx') => {
-    if (!meetingId) {
-      alert("错误：未获取到有效的会议 ID");
-      return;
-    }
-
-    setDownloadingFormat(format);
-    try {
-      const data = await exportMeetingMinutes(meetingId, format);
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
-      
-      let downloadUrl = "";
-      
-      if (format === 'markdown') {
-        // 后端返回的是 { content: "..." }
-        const blob = new Blob([data.content], { type: 'text/markdown' });
-        downloadUrl = URL.createObjectURL(blob);
-      } else {
-        // 后端返回的是 { file_path: "/uploads/..." }
-        // 必须拼接 API 基地址才能访问静态资源
-        downloadUrl = data.file_path.startsWith('http') 
-          ? data.file_path 
-          : `${API_BASE}${data.file_path}`;
-      }
-
-      // 创建虚拟链接并触发下载
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = data.filename || `meeting_minutes_${meetingId}.${format}`;
-      document.body.appendChild(link);
-      link.click();
-      
-      // 清理
-      document.body.removeChild(link);
-      if (format === 'markdown') URL.revokeObjectURL(downloadUrl);
-      
-    } catch (error) {
-      console.error("下载执行失败:", error);
-      alert("下载失败，请检查后端服务是否正常运行，或依赖包是否安装。");
-    } finally {
-      setDownloadingFormat(null);
-    }
-  };
 
   return (
     <div className="flex-1 flex gap-0 overflow-hidden w-full h-full border border-slate-200 rounded-lg shadow-lg">
@@ -248,8 +204,18 @@ export default function MeetingModule() {
                             {isStarted && currentStep < 4 && (
                               <span className="inline-flex">
                                 <span className="animate-pulse text-xs">•</span>
-                                <span className="animate-pulse text-xs" style={{ animationDelay: "0.2s" }}>•</span>
-                                <span className="animate-pulse text-xs" style={{ animationDelay: "0.4s" }}>•</span>
+                                <span
+                                  className="animate-pulse text-xs"
+                                  style={{ animationDelay: "0.2s" }}
+                                >
+                                  •
+                                </span>
+                                <span
+                                  className="animate-pulse text-xs"
+                                  style={{ animationDelay: "0.4s" }}
+                                >
+                                  •
+                                </span>
                               </span>
                             )}
                           </div>
@@ -275,49 +241,11 @@ export default function MeetingModule() {
           </div>
         </ScrollArea>
 
-        {/* 底部功能区 - 接入后端下载功能 */}
-        {currentStep === 4 && minutes && (
-          <div className="h-auto border-t border-slate-200 bg-slate-50 p-4 flex items-center gap-3">
-            <span className="text-xs font-semibold text-slate-400 uppercase ml-2">导出纪要:</span>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!!downloadingFormat}
-              onClick={() => handleDownload('markdown')}
-              className="gap-2"
-            >
-              <FileCode className="w-4 h-4" />
-              Markdown
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!!downloadingFormat}
-              onClick={() => handleDownload('pdf')}
-              className="gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-            >
-              {downloadingFormat === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-              PDF 格式
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!!downloadingFormat}
-              onClick={() => handleDownload('docx')}
-              className="gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-            >
-              {downloadingFormat === 'docx' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileType className="w-4 h-4" />}
-              Word 格式
-            </Button>
-
-            <Button variant="ghost" size="sm" className="ml-auto text-slate-400">
-              分享纪要
-            </Button>
-          </div>
-        )}
+        {/* 底部功能区 - 使用新的下载按钮组件 */}
+        <DownloadButtons 
+          meetingId={meetingId} 
+          isVisible={currentStep === 4 && !!minutes} 
+        />
       </div>
     </div>
   );
