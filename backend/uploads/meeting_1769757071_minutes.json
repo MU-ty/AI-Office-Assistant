@@ -1,0 +1,50 @@
+{
+  "title": "会议纪要 - meeting_1769757071",
+  "date": "2026-01-30 15:11:23",
+  "participants": [],
+  "meeting_id": "meeting_1769757071",
+  "sentences": [
+    "Unknown Speaker: A I会议助手工作流执行面板会议纪要生成模块测试"
+  ],
+  "paragraphs": [
+    "Unknown Speaker: A I会议助手工作流执行面板会议纪要生成模块测试。"
+  ],
+  "keywords": [],
+  "key_sentences": [
+    "Unknown Speaker: A I会议助手工作流执行面板会议纪要生成模块测试"
+  ],
+  "entities": {
+    "persons": [],
+    "organizations": [],
+    "locations": [],
+    "dates": [],
+    "times": []
+  },
+  "topics": [
+    "AI会议助手",
+    "工作流执行面板",
+    "会议纪要生成模块测试"
+  ],
+  "transcription_text": "Unknown Speaker: A I会议助手工作流执行面板会议纪要生成模块测试。",
+  "agendas": [
+    {
+      "title": "会议纪要生成模块功能测试",
+      "description": "验证AI会议助手在工作流执行面板中自动生成会议纪要的能力"
+    }
+  ],
+  "decisions": [],
+  "action_items": [],
+  "key_points": [
+    "测试对象为会议纪要生成模块",
+    "场景限定于工作流执行面板",
+    "使用AI会议助手作为核心工具"
+  ],
+  "summary": "本次会议为工作流执行面板中会议纪要生成模块的测试环节，聚焦于A I会议助手功能验证，未涉及具体业务讨论或人员决策。",
+  "text_stats": {
+    "char_count": 42,
+    "word_count": 6,
+    "sentence_count": 1,
+    "paragraph_count": 1,
+    "avg_sentence_length": 42.0
+  }
+}
