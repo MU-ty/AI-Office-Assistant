@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import KnowledgeBaseSelector from "@/components/knowledge/KnowledgeBaseSelector";
 import {
   getDocument,
   listDocuments,
@@ -35,6 +36,7 @@ export default function DocumentsModule() {
   const [summary, setSummary] = useState<DocumentSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
 
   const loadDocuments = async () => {
     try {
@@ -180,6 +182,11 @@ export default function DocumentsModule() {
               />
             </div>
           )}
+          <KnowledgeBaseSelector
+            value={knowledgeBaseIds}
+            onChange={setKnowledgeBaseIds}
+            title="引用知识库"
+          />
           <Button onClick={handleUpload} disabled={loading} className="w-full">
             {loading ? "处理中..." : "创建文档"}
           </Button>

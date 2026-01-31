@@ -27,7 +27,8 @@ from app.api import (
     ppt_projects,
     weekly_reports,
     stream,  # 新增: 流式处理服务
-    asr  # 新增: 语音识别服务
+    asr,  # 新增: 语音识别服务
+    weknora
 )
 
 logger = get_logger(__name__)
@@ -216,6 +217,13 @@ app.include_router(
     weekly_reports.router,
     prefix="/api/v1/reports",
     tags=["Reports"]
+)
+
+# WeKnora 知识库接入
+app.include_router(
+    weknora.router,
+    prefix="/api/v1/weknora",
+    tags=["WeKnora"]
 )
 
 

@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mic2, LayoutDashboard, History, Settings, User, BookOpenCheck, FileText, Languages, Presentation } from "lucide-react";
+import { Mic2, LayoutDashboard, History, Settings, User, BookOpenCheck, FileText, Languages, Presentation, Database } from "lucide-react";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -71,6 +71,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
           >
             <FileText className="w-5 h-5" />
             文献摘要
+          </Link>
+          <Link
+            href="/knowledge"
+            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+          >
+            <Database className="w-5 h-5" />
+            知识库管理
           </Link>
           <Link
             href="/translation"

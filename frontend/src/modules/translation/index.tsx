@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import KnowledgeBaseSelector from "@/components/knowledge/KnowledgeBaseSelector";
 import {
   addTerminology,
   createTranslationTask,
@@ -46,6 +47,7 @@ export default function TranslationModule() {
   const [viewMode, setViewMode] = useState<"dual" | "compare">("dual");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
 
   const loadTasks = async () => {
     try {
@@ -196,6 +198,11 @@ export default function TranslationModule() {
                 </option>
               ))}
             </select>
+          <KnowledgeBaseSelector
+            value={knowledgeBaseIds}
+            onChange={setKnowledgeBaseIds}
+            title="引用知识库"
+          />
           </div>
           <div className="space-y-2">
             <label className="text-xs text-slate-500">领域</label>
