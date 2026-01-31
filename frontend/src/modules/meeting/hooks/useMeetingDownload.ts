@@ -14,7 +14,7 @@ export const useMeetingDownload = (meetingId: string | undefined) => {
     try {
       const data = await exportMeetingMinutes(meetingId, format);
       const API_BASE =
-        process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+        process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8003";
 
       let downloadUrl = "";
 

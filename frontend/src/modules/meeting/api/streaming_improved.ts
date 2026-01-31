@@ -8,7 +8,9 @@
  * - 支持实时显示吐字进度
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+import * as React from "react";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8003";
 
 /**
  * 流式生成会议纪要
@@ -263,110 +265,4 @@ export function diagnosticStreamMeeting(meetingId: string) {
   });
 
   return cleanup;
-}
-
-/**
- * 完整流程示例（在 React 组件中使用）
- */
-export function MeetingMinutesStreamExample() {
-  const [meetingId, setMeetingId] = React.useState("meeting_test");
-  const [generatedContent, setGeneratedContent] = React.useState("");
-  const [status, setStatus] = React.useState<
-    "idle" | "streaming" | "processing" | "complete" | "error"
-  >("idle");
-  const [error, setError] = React.useState<string | null>(null);
-  const cleanupRef = React.useRef<(() => void) | null>(null);
-
-  const handleStartStream = () => {
-    setStatus("streaming");
-    setGeneratedContent("");
-    setError(null);
-
-    cleanupRef.current = streamMeetingMinutesImproved(meetingId, {
-      onStreaming: (chunk, fullContent) => {
-        // 实时更新显示
-        setGeneratedContent(fullContent);
-      },
-      onProcessing: (message) => {
-        setStatus("processing");
-      },
-      onComplete: (data) => {
-        setStatus("complete");
-        // 此时可以安全地下载文件
-      },
-      onError: (err) => {
-        setStatus("error");
-        setError(err.message);
-      }
-    });
-  };
-
-  const handleStopStream = () => {
-    if (cleanupRef.current) {
-      cleanupRef.current();
-    }
-  };
-
-  const handleDownload = async (format: "markdown" | "json" | "pdf" | "docx") => {
-    try {
-      await downloadGeneratedMinutes(meetingId, format);
-    } catch (err) {
-      setError(`下载失败: ${err}`);
-    }
-  };
-
-  return (
-    <div style={{ padding: "20px" }}>
-      <h2>会议纪要流式生成测试</h2>
-      
-      <div>
-        <input
-          type="text"
-          value={meetingId}
-          onChange={(e) => setMeetingId(e.target.value)}
-          placeholder="输入 Meeting ID"
-        />
-        <button onClick={handleStartStream} disabled={status === "streaming" || status === "processing"}>
-          开始流式生成
-        </button>
-        <button onClick={handleStopStream}>停止</button>
-      </div>
-
-      <div>
-        <p>状态: {status}</p>
-        {error && <p style={{ color: "red" }}>错误: {error}</p>}
-      </div>
-
-      <div>
-        <h3>生成的内容：</h3>
-        <textarea
-          value={generatedContent}
-          readOnly
-          style={{
-            width: "100%",
-            height: "300px",
-            fontFamily: "monospace"
-          }}
-        />
-      </div>
-
-      {status === "complete" && (
-        <div>
-          <h3>下载选项：</h3>
-          <button onClick={() => handleDownload("markdown")}>
-            下载 Markdown
-          </button>
-          <button onClick={() => handleDownload("json")}>
-            下载 JSON
-          </button>
-          <button onClick={() => handleDownload("pdf")}>
-            下载 PDF
-          </button>
-          <button onClick={() => handleDownload("docx")}>
-            下载 Word
-          </button>
-        </div>
-      )}
-    </div>
-  );
 }

@@ -220,6 +220,10 @@ class RemoteAPIStream:
         self,
         messages: List[Dict[str, str]],
         api_url: str = "http://localhost:8000/v1/chat/completions",
+<<<<<<< HEAD
+=======
+        api_key: Optional[str] = None,
+>>>>>>> origin/feature/new-function
         question: str = "",
         model_name: str = "Qwen3-8B",
         temperature: float = 0.1,
@@ -246,8 +250,28 @@ class RemoteAPIStream:
         chat_id = f"chatcmpl-{uuid.uuid4().hex}"
         headers = {
             "Content-Type": "application/json",
+<<<<<<< HEAD
             "Accept": "text/event-stream"
         }
+=======
+            "Accept": "text/event-stream",
+        }
+
+        # DashScope compatible-mode / OpenAI-compatible endpoints require Bearer auth.
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        else:
+            # Without a key, Qwen-compatible streaming will fail; return a structured error.
+            error_msg = "QWEN_API_KEY 未配置，无法进行流式调用"
+            self.logger.error(error_msg)
+            yield StreamFormatter.format_error(
+                chat_id=chat_id,
+                error_msg=error_msg,
+                code=401,
+                model=model_name,
+            )
+            return
+>>>>>>> origin/feature/new-function
         
         payload = {
             "model": model_name,

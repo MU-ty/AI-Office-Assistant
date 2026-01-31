@@ -2,7 +2,11 @@
  * 流式 API 调用 - 用于实时接收后端的流式数据
  */
 
+<<<<<<< HEAD
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+=======
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8003";
+>>>>>>> origin/feature/new-function
 
 /**
  * 监听任务的流式输出（实时接收 MD 内容）

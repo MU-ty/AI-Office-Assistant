@@ -3,13 +3,23 @@
 提供会议处理相关业务逻辑，集成NLP和文档生成服务
 """
 
+<<<<<<< HEAD
 from typing import List, Optional, Dict
+=======
+import json
+from typing import List, Optional, Dict, AsyncGenerator
+>>>>>>> origin/feature/new-function
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import UploadFile, HTTPException
 from datetime import datetime
 
 from app.utils.logger import get_logger
 from app.services.meeting_minutes_service import MeetingMinutesService
+<<<<<<< HEAD
+=======
+from app.services.stream_service import StreamService, StreamProvider
+from app.core.config import settings
+>>>>>>> origin/feature/new-function
 
 # 简易的内存存储，便于跑通流程。生产环境请替换为数据库持久化。
 MEETING_STORE: Dict[str, dict] = {}
@@ -259,6 +269,87 @@ class MeetingService:
             导出信息
         """
         return await self.minutes_service.export_minutes(meeting_id, format)
+<<<<<<< HEAD
+=======
+
+    # ============================================================
+    # SSE：逐字/逐token 流式生成纪要
+    # ============================================================
+
+    def get_llm_stream(self, meeting_id: str, meeting_data: Dict) -> AsyncGenerator[str, None]:
+        """返回一个 async generator，每次 yield 一段文本（token/chunk）。
+
+        由 /minutes/stream SSE 端点消费，并包装成 {status: streaming, chunk, content}。
+        """
+
+        transcription = (
+            meeting_data.get("transcription_text")
+            or meeting_data.get("transcription")
+            or meeting_data.get("content")
+            or ""
+        )
+        title = meeting_data.get("title") or f"会议纪要 - {meeting_id}"
+
+        system_prompt = (
+            "你是一个专业的会议纪要助手。请根据会议转录内容生成结构清晰的中文会议纪要。\n"
+            "要求：\n"
+            "1) 使用 Markdown 输出（包含标题、基本信息、关键点、决议、Action Items 等）\n"
+            "2) 内容准确、条理清晰、适合直接发给参会人员\n"
+            "3) 不要输出 JSON，不要输出多余解释\n"
+        )
+        user_prompt = (
+            f"会议标题：{title}\n\n"
+            "会议转录如下（可能较长）：\n\n"
+            f"{transcription[:60000]}"
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        async def _gen() -> AsyncGenerator[str, None]:
+            # 优先走 Qwen（DashScope compatible-mode），如果没配置则降级为模拟输出
+            if not settings.QWEN_API_KEY:
+                fallback_text = "（未配置 QWEN_API_KEY，无法流式生成纪要。请在后端 .env 中配置后重试。）\n"
+                for i in range(0, len(fallback_text), 8):
+                    yield fallback_text[i : i + 8]
+                return
+
+            api_url = settings.QWEN_BASE_URL.rstrip("/") + "/chat/completions"
+            stream_service = StreamService(logger=logger)
+
+            async for sse_line in stream_service.stream(
+                provider=StreamProvider.QWEN,
+                messages=messages,
+                question="生成会议纪要",
+                api_url=api_url,
+                api_key=settings.QWEN_API_KEY,
+                model_name=settings.QWEN_MODEL_NAME,
+                temperature=0.2,
+                top_p=0.9,
+                max_tokens=2048,
+            ):
+                if not sse_line or not sse_line.startswith("data: "):
+                    continue
+
+                payload = sse_line[6:].strip()
+                try:
+                    obj = json.loads(payload)
+                except Exception:
+                    continue
+
+                try:
+                    delta = obj.get("choices", [{}])[0].get("delta", {})
+                    content = delta.get("content", "")
+                except Exception:
+                    content = ""
+
+                if content:
+                    yield content
+
+        return _gen()
+>>>>>>> origin/feature/new-function
     
     # ============================================================
     # 流程图第20-23步：邮件和分享

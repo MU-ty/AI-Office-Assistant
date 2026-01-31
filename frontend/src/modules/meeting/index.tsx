@@ -244,7 +244,7 @@ export default function MeetingModule() {
         {/* 底部功能区 - 使用新的下载按钮组件 */}
         <DownloadButtons 
           meetingId={meetingId} 
-          isVisible={currentStep === 4 && !!minutes} 
+          isVisible={currentStep === 4} 
         />
       </div>
     </div>
