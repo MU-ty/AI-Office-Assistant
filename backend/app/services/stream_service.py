@@ -220,10 +220,7 @@ class RemoteAPIStream:
         self,
         messages: List[Dict[str, str]],
         api_url: str = "http://localhost:8000/v1/chat/completions",
-<<<<<<< HEAD
-=======
         api_key: Optional[str] = None,
->>>>>>> origin/feature/new-function
         question: str = "",
         model_name: str = "Qwen3-8B",
         temperature: float = 0.1,
@@ -250,10 +247,6 @@ class RemoteAPIStream:
         chat_id = f"chatcmpl-{uuid.uuid4().hex}"
         headers = {
             "Content-Type": "application/json",
-<<<<<<< HEAD
-            "Accept": "text/event-stream"
-        }
-=======
             "Accept": "text/event-stream",
         }
 
@@ -271,7 +264,6 @@ class RemoteAPIStream:
                 model=model_name,
             )
             return
->>>>>>> origin/feature/new-function
         
         payload = {
             "model": model_name,

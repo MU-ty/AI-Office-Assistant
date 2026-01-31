@@ -3,23 +3,16 @@
 提供会议处理相关业务逻辑，集成NLP和文档生成服务
 """
 
-<<<<<<< HEAD
-from typing import List, Optional, Dict
-=======
 import json
 from typing import List, Optional, Dict, AsyncGenerator
->>>>>>> origin/feature/new-function
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import UploadFile, HTTPException
 from datetime import datetime
 
 from app.utils.logger import get_logger
 from app.services.meeting_minutes_service import MeetingMinutesService
-<<<<<<< HEAD
-=======
 from app.services.stream_service import StreamService, StreamProvider
 from app.core.config import settings
->>>>>>> origin/feature/new-function
 
 # 简易的内存存储，便于跑通流程。生产环境请替换为数据库持久化。
 MEETING_STORE: Dict[str, dict] = {}
@@ -269,8 +262,6 @@ class MeetingService:
             导出信息
         """
         return await self.minutes_service.export_minutes(meeting_id, format)
-<<<<<<< HEAD
-=======
 
     # ============================================================
     # SSE：逐字/逐token 流式生成纪要
@@ -349,7 +340,6 @@ class MeetingService:
                     yield content
 
         return _gen()
->>>>>>> origin/feature/new-function
     
     # ============================================================
     # 流程图第20-23步：邮件和分享
