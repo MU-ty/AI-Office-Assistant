@@ -20,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.document import Document, DocumentSummary
 from app.utils.logger import get_logger
+from app.services.weknora_service import weknora_service
+from app.core.config import settings
 
 logger = get_logger(__name__)
 

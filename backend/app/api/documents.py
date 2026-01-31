@@ -15,7 +15,8 @@ Endpoints:
 
 from fastapi import APIRouter, Depends, status, UploadFile, File, HTTPException, Form
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.auth import get_current_user_id
@@ -31,6 +32,50 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+class SearchRequest(BaseModel):
+    query: str
+    knowledge_base_ids: List[str]
+    limit: Optional[int] = 10
+
+
+class AskRequest(BaseModel):
+    query: str
+    knowledge_base_ids: List[str]
+    session_id: Optional[str] = None
+
+
+class KBCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = ""
+
+
+class DocUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+
+
+@router.post("/knowledge-bases", status_code=status.HTTP_201_CREATED)
+async def create_knowledge_base(
+    request: KBCreateRequest
+):
+    """在 WeKnora 中创建新的知识库"""
+    from app.services.weknora_service import weknora_service
+    return await weknora_service.create_knowledge_base(request.name, request.description)
+
+
+@router.post("/ask")
+async def ask_with_rag(
+    request: AskRequest
+):
+    """基于知识库回答问题 (RAG)"""
+    return await rag_service.answer_with_knowledge(
+        request.query, 
+        request.knowledge_base_ids, 
+        request.session_id
+    )
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -90,6 +135,9 @@ async def upload_document_url(
 
 @router.get("/")
 async def list_documents(
+    knowledge_base_id: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
     skip: int = 0,
     limit: int = 10,
     category: str = None,
@@ -107,7 +155,7 @@ async def list_documents(
 
 
 @router.get("/{doc_id}")
-async def get_document(
+async def get_document_details(
     doc_id: str,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
@@ -143,7 +191,7 @@ async def update_document(
         raise HTTPException(status_code=500, detail="更新失败")
 
 
-@router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{doc_id}")
 async def delete_document(
     doc_id: str,
     db: AsyncSession = Depends(get_db),
