@@ -1,0 +1,70 @@
+{
+  "title": "会议纪要 - meeting_1769780589",
+  "date": "2026-01-30 21:43:39",
+  "participants": [
+    "简体中文"
+  ],
+  "meeting_id": "meeting_1769780589",
+  "sentences": [
+    "Unknown Speaker: 以下是简体中文的会议"
+  ],
+  "paragraphs": [
+    "Unknown Speaker: 以下是简体中文的会议。"
+  ],
+  "keywords": [
+    "简体中文",
+    "Unknown",
+    "Speaker",
+    "以下",
+    "会议"
+  ],
+  "key_sentences": [
+    "Unknown Speaker: 以下是简体中文的会议"
+  ],
+  "entities": {
+    "persons": [
+      "简体中文"
+    ],
+    "organizations": [],
+    "locations": [],
+    "dates": [],
+    "times": []
+  },
+  "topics": [
+    "简体中文",
+    "Unknown",
+    "Speaker",
+    "以下",
+    "会议"
+  ],
+  "transcription_text": "Unknown Speaker: 以下是简体中文的会议。",
+  "agendas": [
+    "简体中文",
+    "Unknown",
+    "Speaker",
+    "以下",
+    "会议"
+  ],
+  "decisions": [
+    "本次会议暂无明确决议"
+  ],
+  "action_items": [
+    {
+      "content": "暂无明确待办事项",
+      "owner": "无",
+      "due_date": "无",
+      "status": "pending"
+    }
+  ],
+  "key_points": [
+    "关键点: Unknown Speaker: 以下是简体中文的会议"
+  ],
+  "summary": "",
+  "text_stats": {
+    "char_count": 28,
+    "word_count": 11,
+    "sentence_count": 1,
+    "paragraph_count": 1,
+    "avg_sentence_length": 28.0
+  }
+}
