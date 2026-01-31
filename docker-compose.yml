@@ -264,8 +264,6 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-      weaviate:
-        condition: service_healthy
     env_file:
       - .env
     volumes:

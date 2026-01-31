@@ -4,7 +4,7 @@
  */
 
 // 1. 获取基础配置：优先使用环境变量，本地开发默认 8003 端口
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8003";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
 const getAuthHeaders = () => {
   if (typeof window === "undefined") return {} as Record<string, string>;

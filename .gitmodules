@@ -1,0 +1,3 @@
+[submodule "external/WeKnora"]
+	path = external/WeKnora
+	url = https://github.com/MU-ty/WeKnora.git
