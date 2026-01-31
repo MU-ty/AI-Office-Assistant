@@ -16,12 +16,13 @@ interface DownloadButtonsProps {
 export const DownloadButtons = ({ meetingId, isVisible = true }: DownloadButtonsProps) => {
   const { handleDownload, downloadingFormat } = useMeetingDownload(meetingId);
 
-  if (!isVisible || !meetingId) {
+  // 只要有meetingId就显示按钮，不管isVisible参数
+  if (!meetingId) {
     return null;
   }
 
   return (
-    <div className="h-auto border-t border-slate-200 bg-slate-50 p-4 flex items-center gap-3">
+    <div className="sticky bottom-0 h-auto border-t border-slate-200 bg-slate-50 p-4 flex items-center gap-3 flex-wrap shadow-lg z-10">
       <span className="text-xs font-semibold text-slate-400 uppercase ml-2">
         导出纪要:
       </span>
@@ -33,7 +34,11 @@ export const DownloadButtons = ({ meetingId, isVisible = true }: DownloadButtons
         onClick={() => handleDownload("markdown")}
         className="gap-2"
       >
-        <FileCode className="w-4 h-4" />
+        {downloadingFormat === "markdown" ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <FileCode className="w-4 h-4" />
+        )}
         Markdown
       </Button>
 

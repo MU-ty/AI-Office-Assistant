@@ -323,14 +323,36 @@ async def stream_meeting_minutes(
     
     # 获取会议数据和 LLM 生成的流
     try:
-        meeting_data = await service.get_meeting(meeting_id)
+        # 优先使用 MeetingMinutesService 产出的结构数据（含 transcription_text）
+        from app.services.meeting_minutes_service import MINUTES_STORE, TASK_STATE
+
+        meeting_data = None
+        store_record = MINUTES_STORE.get(meeting_id)
+        if store_record:
+            meeting_data = store_record.get("original_data") or store_record
+            # 补充标题，避免 original_data 缺少 title
+            meeting_data.setdefault("title", store_record.get("title"))
+
+        if not meeting_data:
+            # 尝试从任务状态恢复
+            for state in TASK_STATE.values():
+                if state.get("meeting_id") == meeting_id:
+                    meeting_data = state.get("nlp_result") or {}
+                    meeting_data.setdefault("transcription_text", state.get("transcription") or "")
+                    meeting_data.setdefault("title", f"会议纪要 - {meeting_id}")
+                    break
+
+        if not meeting_data:
+            # 最后才退回到 MEETING_STORE（一般不含转录）
+            meeting_data = await service.get_meeting(meeting_id)
+
         if not meeting_data or meeting_data.get("error"):
             return StreamingResponse(
                 _error_stream("会议不存在"),
                 media_type="text/event-stream"
             )
         
-        # 获取 LLM 流式生成器（需要在 service 中实现）
+        # 获取 LLM 流式生成器
         llm_stream = service.get_llm_stream(meeting_id, meeting_data)
         
         # 使用 MeetingStreamingService 进行流式生成和保存

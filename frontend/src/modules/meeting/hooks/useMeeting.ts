@@ -7,6 +7,7 @@ import {
 } from "../api";
 import { pollTaskStatusForMinutes } from "../api/streaming";
 import { diagnosticPoll } from "../api/diagnostic";
+import { streamMeetingMinutesImproved } from "../api/streaming_improved";
 import {
   minutesToMessages,
   ChatMessage,
@@ -62,6 +63,8 @@ export function useMeeting(initialMeetingId?: string) {
   const hasLoadedInitialRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopPollingRef = useRef<(() => void) | null>(null);
+  const stopSseRef = useRef<(() => void) | null>(null);
+  const sseStartedRef = useRef(false);
 
   // 1. 先声明状态获取函数
   function getStatus(index: number) {
@@ -120,6 +123,12 @@ export function useMeeting(initialMeetingId?: string) {
         stopPollingRef.current();
       }
 
+      if (stopSseRef.current) {
+        stopSseRef.current();
+        stopSseRef.current = null;
+      }
+      sseStartedRef.current = false;
+
       stopPollingRef.current = await diagnosticPoll(
         newTaskId,
         (status) => {
@@ -136,11 +145,50 @@ export function useMeeting(initialMeetingId?: string) {
           if (status.minutes) {
             setMinutes(status.minutes);
           }
+
+          // 当进入“生成纪要文档”(step=3)阶段时，启动 SSE 逐字输出
+          if (
+            status.step === 3 &&
+            !sseStartedRef.current &&
+            meetingId
+          ) {
+            sseStartedRef.current = true;
+            console.log("🟦 启动 SSE 逐字输出...", meetingId);
+
+            stopSseRef.current = streamMeetingMinutesImproved(meetingId, {
+              onStreaming: (_chunk, fullContent) => {
+                // 后端会同时带 chunk 与累积 content，这里用累积内容直接渲染
+                setMinutes(fullContent);
+              },
+              onProcessing: (message) => {
+                setContent(message);
+              },
+              onComplete: () => {
+                console.log("✅ SSE 输出完成");
+                if (stopSseRef.current) {
+                  stopSseRef.current();
+                  stopSseRef.current = null;
+                }
+              },
+              onError: (err) => {
+                console.error("❌ SSE 输出失败:", err);
+                if (stopSseRef.current) {
+                  stopSseRef.current();
+                  stopSseRef.current = null;
+                }
+              },
+            });
+          }
         },
         async () => {
           // 任务完成后，调用纪要接口获取完整数据
           console.log("✅ 诊断轮询完成，开始获取完整纪要");
           setCurrentStep(4);
+
+          if (stopSseRef.current) {
+            stopSseRef.current();
+            stopSseRef.current = null;
+          }
 
           try {
             const minutesData = await fetchMeetingMinutes(meetingId);
@@ -183,12 +231,22 @@ export function useMeeting(initialMeetingId?: string) {
         (error) => {
           console.error("❌ 诊断轮询错误:", error);
           setIsStarted(false);
+
+          if (stopSseRef.current) {
+            stopSseRef.current();
+            stopSseRef.current = null;
+          }
         },
         1000, // 1 秒轮询一次
       );
     } catch (error) {
       console.error("启动失败:", error);
       setIsStarted(false);
+
+      if (stopSseRef.current) {
+        stopSseRef.current();
+        stopSseRef.current = null;
+      }
     }
   };
 

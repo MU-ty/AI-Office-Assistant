@@ -813,31 +813,45 @@ Action Items：
                         break
         
         if not minutes_record:
+            logger.error(f"未找到会议纪要: {meeting_id}")
             raise HTTPException(status_code=404, detail="meeting_minutes_not_found")
         
         # 2. 准备会议数据
         original_data = minutes_record.get("original_data", {})
         title = minutes_record.get("title", f"会议纪要 - {meeting_id}")
+        minutes_text = minutes_record.get("minutes", "")
+        
+        logger.info(f"会议纪要数据 - title: {title}, has_original_data: {bool(original_data)}, minutes_length: {len(minutes_text) if minutes_text else 0}")
         
         # 3. 根据格式生成文件
         filename = f"meeting_{meeting_id}_minutes"
         
         if format == "markdown":
             # Markdown 直接返回内容
-            content = minutes_record.get("minutes", "")
             return {
                 "meeting_id": meeting_id,
                 "format": format,
-                "content": content,
+                "content": minutes_text,
                 "filename": f"{filename}.md"
             }
         
         elif format == "pdf":
-            # 生成 PDF 文件
+            # 生成 PDF 文件 - 如果original_data为空，使用minutes文本
             filename_pdf = f"{filename}.pdf"
             file_path = os.path.join(settings.UPLOAD_DIR, filename_pdf)
             
-            success = self.doc_gen.generate_pdf(title, original_data, file_path)
+            # 如果没有structured data，用minutes文本创建基本的pdf
+            if not original_data or not any(original_data.values()):
+                logger.info(f"original_data为空，使用minutes文本生成PDF")
+                pdf_data = {
+                    "title": title,
+                    "paragraphs": [minutes_text] if minutes_text else ["会议纪要"],
+                    "summary": minutes_text[:500] if minutes_text else ""
+                }
+            else:
+                pdf_data = original_data
+            
+            success = self.doc_gen.generate_pdf(title, pdf_data, file_path)
             if success:
                 # 返回相对路径用于下载
                 return {
@@ -847,6 +861,7 @@ Action Items：
                     "filename": filename_pdf
                 }
             else:
+                logger.error(f"PDF生成失败，file_path: {file_path}")
                 raise HTTPException(status_code=500, detail="pdf_generation_failed")
         
         elif format == "docx":
@@ -854,7 +869,18 @@ Action Items：
             filename_docx = f"{filename}.docx"
             file_path = os.path.join(settings.UPLOAD_DIR, filename_docx)
             
-            success = self.doc_gen.generate_docx(title, original_data, file_path)
+            # 如果没有structured data，用minutes文本创建基本的Word
+            if not original_data or not any(original_data.values()):
+                logger.info(f"original_data为空，使用minutes文本生成DOCX")
+                docx_data = {
+                    "title": title,
+                    "paragraphs": [minutes_text] if minutes_text else ["会议纪要"],
+                    "summary": minutes_text[:500] if minutes_text else ""
+                }
+            else:
+                docx_data = original_data
+            
+            success = self.doc_gen.generate_docx(title, docx_data, file_path)
             if success:
                 # 返回相对路径用于下载
                 return {
@@ -864,6 +890,7 @@ Action Items：
                     "filename": filename_docx
                 }
             else:
+                logger.error(f"Word文档生成失败，file_path: {file_path}")
                 raise HTTPException(status_code=500, detail="docx_generation_failed")
         
         else:
