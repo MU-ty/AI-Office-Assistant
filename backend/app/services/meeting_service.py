@@ -27,7 +27,7 @@ class MeetingService:
         self.db = db
         self.minutes_service = MeetingMinutesService(db)
     
-    async def create_meeting(self, meeting_data: Dict) -> dict:
+    async def create_meeting(self, meeting_data: Dict, user_id: int) -> dict:
         """
         创建会议
         
@@ -43,6 +43,7 @@ class MeetingService:
             meeting = {
                 "id": meeting_id,
                 "status": "created",
+                "user_id": user_id,
                 **meeting_data,
             }
             MEETING_STORE[meeting_id] = meeting
@@ -51,7 +52,9 @@ class MeetingService:
             logger.error(f"创建会议失败: {e}")
             return {"error": str(e)}
     
-    async def list_meetings(self, skip: int, limit: int, status: Optional[str]) -> List[dict]:
+    async def list_meetings(
+        self, skip: int, limit: int, status: Optional[str], user_id: int
+    ) -> List[dict]:
         """
         获取会议列表
         
@@ -65,7 +68,7 @@ class MeetingService:
         """
         try:
             logger.info(f"查询会议列表: skip={skip}, limit={limit}, status={status}")
-            meetings = list(MEETING_STORE.values())
+            meetings = [m for m in MEETING_STORE.values() if m.get("user_id") == user_id]
             if status:
                 meetings = [m for m in meetings if m.get("status") == status]
             return meetings[skip: skip + limit]
@@ -73,7 +76,7 @@ class MeetingService:
             logger.error(f"查询会议列表失败: {e}")
             return []
     
-    async def get_meeting(self, meeting_id: str) -> dict:
+    async def get_meeting(self, meeting_id: str, user_id: int) -> dict:
         """
         获取会议详情
         
@@ -85,12 +88,12 @@ class MeetingService:
         """
         try:
             logger.info(f"获取会议详情: {meeting_id}")
-            return MEETING_STORE.get(meeting_id, {"error": "meeting_not_found"})
+            return self._require_meeting_access(meeting_id, user_id)
         except Exception as e:
             logger.error(f"获取会议详情失败: {e}")
             return {"error": str(e)}
     
-    async def update_meeting(self, meeting_id: str, meeting_data: Dict) -> dict:
+    async def update_meeting(self, meeting_id: str, meeting_data: Dict, user_id: int) -> dict:
         """
         更新会议信息
         
@@ -103,15 +106,14 @@ class MeetingService:
         """
         try:
             logger.info(f"更新会议: {meeting_id}")
-            if meeting_id not in MEETING_STORE:
-                return {"error": "meeting_not_found"}
-            MEETING_STORE[meeting_id].update(meeting_data)
-            return {"id": meeting_id, **MEETING_STORE[meeting_id]}
+            meeting = self._require_meeting_access(meeting_id, user_id)
+            meeting.update(meeting_data)
+            return {"id": meeting_id, **meeting}
         except Exception as e:
             logger.error(f"更新会议失败: {e}")
             return {"error": str(e)}
     
-    async def delete_meeting(self, meeting_id: str) -> None:
+    async def delete_meeting(self, meeting_id: str, user_id: int) -> None:
         """
         删除会议
         
@@ -120,6 +122,7 @@ class MeetingService:
         """
         try:
             logger.info(f"删除会议: {meeting_id}")
+            self._require_meeting_access(meeting_id, user_id)
             MEETING_STORE.pop(meeting_id, None)
         except Exception as e:
             logger.error(f"删除会议失败: {e}")
@@ -128,7 +131,7 @@ class MeetingService:
     # 流程图第1-3步：上传和转录
     # ============================================================
     
-    async def upload_media(self, meeting_id: str, file: UploadFile) -> dict:
+    async def upload_media(self, meeting_id: str, file: UploadFile, user_id: int) -> dict:
         """
         上传会议音视频
         
@@ -144,9 +147,10 @@ class MeetingService:
         Returns:
             上传和转录信息
         """
+        self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.upload_and_transcribe(meeting_id, file)
     
-    async def start_transcription(self, meeting_id: str) -> dict:
+    async def start_transcription(self, meeting_id: str, user_id: int) -> dict:
         """
         启动音频转录
         
@@ -158,6 +162,7 @@ class MeetingService:
         """
         try:
             logger.info(f"启动转录: {meeting_id}")
+            self._require_meeting_access(meeting_id, user_id)
             # TODO: 触发异步转录任务
             return {"meeting_id": meeting_id, "status": "transcribing"}
         except Exception as e:
@@ -175,7 +180,8 @@ class MeetingService:
     async def process_transcription(
         self,
         meeting_id: str,
-        transcription_text: str
+        transcription_text: str,
+        user_id: int
     ) -> dict:
         """
         处理转录文本，提取各类信息
@@ -195,6 +201,7 @@ class MeetingService:
         Returns:
             处理后的会议数据
         """
+        self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.process_transcription(
             meeting_id,
             transcription_text
@@ -204,7 +211,7 @@ class MeetingService:
     # 流程图第10-19步：生成纪要
     # ============================================================
     
-    async def get_minutes(self, meeting_id: str) -> dict:
+    async def get_minutes(self, meeting_id: str, user_id: int) -> dict:
         """
         获取会议纪要（所有格式）
         
@@ -221,13 +228,15 @@ class MeetingService:
             会议纪要
         """
         logger.info(f"获取会议纪要: {meeting_id}")
+        self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.get_minutes_by_meeting(meeting_id)
     
     async def generate_minutes(
         self,
         meeting_id: str,
         meeting_data: Dict,
-        formats: List[str] = None
+        formats: List[str] = None,
+        user_id: int = 0
     ) -> dict:
         """
         生成会议纪要（支持多种格式）
@@ -242,13 +251,14 @@ class MeetingService:
         Returns:
             生成的纪要信息
         """
+        self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.generate_meeting_minutes(
             meeting_id,
             meeting_data,
             formats
         )
     
-    async def export_minutes(self, meeting_id: str, format: str = "markdown") -> dict:
+    async def export_minutes(self, meeting_id: str, format: str = "markdown", user_id: int = 0) -> dict:
         """
         导出会议纪要
         
@@ -261,18 +271,22 @@ class MeetingService:
         Returns:
             导出信息
         """
+        self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.export_minutes(meeting_id, format)
 
     # ============================================================
     # SSE：逐字/逐token 流式生成纪要
     # ============================================================
 
-    def get_llm_stream(self, meeting_id: str, meeting_data: Dict) -> AsyncGenerator[str, None]:
+    def get_llm_stream(
+        self, meeting_id: str, meeting_data: Dict, user_id: int
+    ) -> AsyncGenerator[str, None]:
         """返回一个 async generator，每次 yield 一段文本（token/chunk）。
 
         由 /minutes/stream SSE 端点消费，并包装成 {status: streaming, chunk, content}。
         """
 
+        self._require_meeting_access(meeting_id, user_id)
         transcription = (
             meeting_data.get("transcription_text")
             or meeting_data.get("transcription")
@@ -349,7 +363,8 @@ class MeetingService:
         self,
         meeting_id: str,
         recipients: List[str],
-        format: str = "pdf"
+        format: str = "pdf",
+        user_id: int = 0
     ) -> dict:
         """
         通过邮件发送会议纪要
@@ -364,6 +379,7 @@ class MeetingService:
         Returns:
             发送状态
         """
+        self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.send_minutes_email(
             meeting_id,
             recipients,
@@ -373,7 +389,8 @@ class MeetingService:
     async def share_minutes(
         self,
         meeting_id: str,
-        share_targets: Dict
+        share_targets: Dict,
+        user_id: int = 0
     ) -> dict:
         """
         分享会议纪要
@@ -387,16 +404,18 @@ class MeetingService:
         Returns:
             分享状态
         """
+        self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.share_minutes(meeting_id, share_targets)
     
     # ============================================================
     # 查询端点
     # ============================================================
     
-    async def get_participants(self, meeting_id: str) -> List[dict]:
+    async def get_participants(self, meeting_id: str, user_id: int) -> List[dict]:
         """获取会议参与人列表"""
         try:
             logger.info(f"获取参与人: {meeting_id}")
+            self._require_meeting_access(meeting_id, user_id)
             # 获取原始结构化数据
             data = self.minutes_service.get_minutes_data(meeting_id)
             if not data:
@@ -410,10 +429,11 @@ class MeetingService:
             logger.error(f"获取参与人失败: {e}")
             return []
     
-    async def get_agendas(self, meeting_id: str) -> List[dict]:
+    async def get_agendas(self, meeting_id: str, user_id: int) -> List[dict]:
         """获取会议议程"""
         try:
             logger.info(f"获取议程: {meeting_id}")
+            self._require_meeting_access(meeting_id, user_id)
             # 获取原始结构化数据
             data = self.minutes_service.get_minutes_data(meeting_id)
             if not data:
@@ -435,10 +455,11 @@ class MeetingService:
             logger.error(f"获取议程失败: {e}")
             return []
     
-    async def get_decisions(self, meeting_id: str) -> List[dict]:
+    async def get_decisions(self, meeting_id: str, user_id: int) -> List[dict]:
         """获取会议决议"""
         try:
             logger.info(f"获取决议: {meeting_id}")
+            self._require_meeting_access(meeting_id, user_id)
             # 获取原始结构化数据
             data = self.minutes_service.get_minutes_data(meeting_id)
             if not data:
@@ -451,10 +472,11 @@ class MeetingService:
             logger.error(f"获取决议失败: {e}")
             return []
     
-    async def get_action_items(self, meeting_id: str) -> List[dict]:
+    async def get_action_items(self, meeting_id: str, user_id: int) -> List[dict]:
         """获取Action Items"""
         try:
             logger.info(f"获取Action Items: {meeting_id}")
+            self._require_meeting_access(meeting_id, user_id)
             # 获取原始结构化数据
             data = self.minutes_service.get_minutes_data(meeting_id)
             if not data:
@@ -483,3 +505,11 @@ class MeetingService:
         except Exception as e:
             logger.error(f"获取Action Items失败: {e}")
             return []
+
+    def _require_meeting_access(self, meeting_id: str, user_id: int) -> dict:
+        meeting = MEETING_STORE.get(meeting_id)
+        if not meeting:
+            raise HTTPException(status_code=404, detail="会议不存在")
+        if meeting.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail="无权限访问该会议")
+        return meeting

@@ -6,6 +6,13 @@
 // 1. 获取基础配置：优先使用环境变量，本地开发默认 8003 端口
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8003";
 
+const getAuthHeaders = () => {
+  if (typeof window === "undefined") return {} as Record<string, string>;
+  const token = localStorage.getItem("access_token");
+  if (!token) return {} as Record<string, string>;
+  return { Authorization: `Bearer ${token}` };
+};
+
 /**
  * 导出会议纪要 (新接入功能)
  * @param meetingId 会议的唯一标识
@@ -19,6 +26,7 @@ export async function exportMeetingMinutes(meetingId: string, format: string) {
       method: "POST", // 后端修复说明明确要求使用 POST
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeaders(),
       },
     }
   );
@@ -38,7 +46,9 @@ export async function exportMeetingMinutes(meetingId: string, format: string) {
  * 获取会议纪要详情
  */
 export async function fetchMeetingMinutes(meetingId: string) {
-  const response = await fetch(`${API_BASE}/api/v1/meetings/${meetingId}/minutes`);
+  const response = await fetch(`${API_BASE}/api/v1/meetings/${meetingId}/minutes`, {
+    headers: { ...getAuthHeaders() }
+  });
   if (!response.ok) throw new Error("获取会议纪要失败");
   return response.json();
 }
@@ -54,7 +64,7 @@ export async function createMeeting(payload: {
 }) {
   const response = await fetch(`${API_BASE}/api/v1/meetings`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("创建会议失败");
@@ -70,6 +80,7 @@ export async function uploadMeetingAudio(meetingId: string, file: File) {
 
   const response = await fetch(`${API_BASE}/api/v1/meetings/${meetingId}/upload`, {
     method: "POST",
+    headers: { ...getAuthHeaders() },
     body: formData, // 注意：上传文件不需要手动设置 Content-Type，浏览器会自动处理边界
   });
   if (!response.ok) throw new Error("音频上传失败");

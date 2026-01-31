@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool, StaticPool
 from sqlalchemy.orm import declarative_base
+from sqlalchemy import text
 
 from app.core.config import settings
 from app.utils.logger import get_logger
@@ -83,9 +84,68 @@ async def init_db():
             from app.models import user, meeting, document, polish, translation, ppt, report
             
             await conn.run_sync(Base.metadata.create_all)
+            if settings.DB_TYPE == "sqlite":
+                await _ensure_sqlite_schema(conn)
             logger.info("✅ 数据库表创建完成")
     except Exception as e:
         logger.error(f"❌ 数据库初始化失败: {e}")
+        raise
+
+
+async def _ensure_sqlite_schema(conn):
+    """修复 SQLite 旧表缺失列的问题"""
+    try:
+        migrations = {
+            "work_logs": [
+                ("user_id", "INTEGER"),
+            ],
+            "weekly_reports": [
+                ("user_id", "INTEGER"),
+                ("title", "VARCHAR(255)"),
+                ("week_start_date", "DATETIME"),
+                ("week_end_date", "DATETIME"),
+                ("week", "VARCHAR(50)"),
+                ("summary", "TEXT"),
+                ("content", "TEXT"),
+                ("status", "VARCHAR(50)"),
+                ("total_hours", "FLOAT"),
+                ("review_feedback", "TEXT"),
+                ("reviewer_id", "INTEGER"),
+                ("reviewed_at", "DATETIME"),
+                ("created_at", "DATETIME"),
+                ("updated_at", "DATETIME"),
+            ],
+            "polish_tasks": [
+                ("user_id", "INTEGER"),
+                ("document_id", "INTEGER"),
+                ("polished_text", "TEXT"),
+                ("status", "VARCHAR(20)"),
+                ("polish_level", "VARCHAR(20)"),
+                ("terminology_issues", "TEXT"),
+                ("tense_issues", "TEXT"),
+                ("style_issues", "TEXT"),
+                ("thesis_issues", "TEXT"),
+                ("total_issues", "INTEGER"),
+                ("fixed_issues", "INTEGER"),
+                ("accuracy", "FLOAT"),
+                ("auto_fix_enabled", "VARCHAR(5)"),
+                ("created_at", "DATETIME"),
+                ("updated_at", "DATETIME"),
+                ("completed_at", "DATETIME"),
+            ],
+        }
+
+        for table_name, columns_to_add in migrations.items():
+            result = await conn.execute(text(f"PRAGMA table_info({table_name})"))
+            existing_columns = {row[1] for row in result.fetchall()}
+            for column_name, column_type in columns_to_add:
+                if column_name not in existing_columns:
+                    await conn.execute(text(
+                        f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"
+                    ))
+                    logger.info(f"SQLite 迁移: {table_name} 补充列 {column_name}")
+    except Exception as e:
+        logger.error(f"SQLite 迁移失败: {e}")
         raise
 
 

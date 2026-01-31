@@ -36,6 +36,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db
+from app.core.auth import get_current_user_id
 from app.services.meeting_service import MeetingService
 from app.services.meeting_streaming_service import meeting_streaming_service
 from app.utils.logger import get_logger
@@ -98,7 +99,8 @@ class TaskStatusResponse(BaseModel):
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=dict)
 async def create_meeting(
     meeting_data: MeetingCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     创建新会议
@@ -107,7 +109,7 @@ async def create_meeting(
     - 状态: created
     """
     service = MeetingService(db)
-    return await service.create_meeting(meeting_data.dict())
+    return await service.create_meeting(meeting_data.dict(), user_id=current_user_id)
 
 
 @router.get("/", response_model=List[dict])
@@ -115,7 +117,8 @@ async def list_meetings(
     skip: int = 0,
     limit: int = 10,
     meeting_status: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取会议列表
@@ -123,38 +126,41 @@ async def list_meetings(
     - 支持状态过滤: created, transcribing, processing, completed
     """
     service = MeetingService(db)
-    return await service.list_meetings(skip, limit, meeting_status)
+    return await service.list_meetings(skip, limit, meeting_status, user_id=current_user_id)
 
 
 @router.get("/{meeting_id}", response_model=dict)
 async def get_meeting(
     meeting_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """获取会议详情"""
     service = MeetingService(db)
-    return await service.get_meeting(meeting_id)
+    return await service.get_meeting(meeting_id, user_id=current_user_id)
 
 
 @router.put("/{meeting_id}", response_model=dict)
 async def update_meeting(
     meeting_id: str,
     meeting_data: MeetingCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """更新会议信息"""
     service = MeetingService(db)
-    return await service.update_meeting(meeting_id, meeting_data.dict())
+    return await service.update_meeting(meeting_id, meeting_data.dict(), user_id=current_user_id)
 
 
 @router.delete("/{meeting_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_meeting(
     meeting_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """删除会议"""
     service = MeetingService(db)
-    await service.delete_meeting(meeting_id)
+    await service.delete_meeting(meeting_id, user_id=current_user_id)
 
 
 # ============================================================
@@ -165,7 +171,8 @@ async def delete_meeting(
 async def upload_meeting_media(
     meeting_id: str,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     上传会议音视频 - 触发转录
@@ -178,7 +185,7 @@ async def upload_meeting_media(
     支持格式: mp3, wav, m4a, webm, mp4
     """
     service = MeetingService(db)
-    return await service.upload_media(meeting_id, file)
+    return await service.upload_media(meeting_id, file, user_id=current_user_id)
 
 
 @router.get("/tasks/{task_id}", response_model=TaskStatusResponse)
@@ -194,7 +201,8 @@ async def get_task_status(
 @router.post("/{meeting_id}/transcribe", response_model=dict)
 async def transcribe_meeting(
     meeting_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     手动触发转录
@@ -202,7 +210,7 @@ async def transcribe_meeting(
     用于已上传但未转录的音视频
     """
     service = MeetingService(db)
-    return await service.start_transcription(meeting_id)
+    return await service.start_transcription(meeting_id, user_id=current_user_id)
 
 
 # ============================================================
@@ -213,7 +221,8 @@ async def transcribe_meeting(
 async def process_meeting_transcription(
     meeting_id: str,
     request: ProcessTranscriptionRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     处理转录文本 - 提取各类信息
@@ -239,7 +248,8 @@ async def process_meeting_transcription(
     service = MeetingService(db)
     return await service.process_transcription(
         meeting_id,
-        request.transcription_text
+        request.transcription_text,
+        user_id=current_user_id
     )
 
 
@@ -251,7 +261,8 @@ async def process_meeting_transcription(
 async def generate_meeting_minutes(
     meeting_id: str,
     request: GenerateMinutesRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     生成会议纪要 - 多格式支持
@@ -278,14 +289,16 @@ async def generate_meeting_minutes(
     return await service.generate_minutes(
         meeting_id,
         request.meeting_data,
-        request.formats
+        request.formats,
+        user_id=current_user_id
     )
 
 
 @router.get("/{meeting_id}/minutes", response_model=dict)
 async def get_meeting_minutes(
     meeting_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取已生成的会议纪要
@@ -297,13 +310,14 @@ async def get_meeting_minutes(
     - 完整内容（可选）
     """
     service = MeetingService(db)
-    return await service.get_minutes(meeting_id)
+    return await service.get_minutes(meeting_id, user_id=current_user_id)
 
 
 @router.get("/{meeting_id}/minutes/stream")
 async def stream_meeting_minutes(
     meeting_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     流式获取会议纪要生成过程
@@ -323,6 +337,8 @@ async def stream_meeting_minutes(
     
     # 获取会议数据和 LLM 生成的流
     try:
+        # 先校验会议权限
+        await service.get_meeting(meeting_id, user_id=current_user_id)
         # 优先使用 MeetingMinutesService 产出的结构数据（含 transcription_text）
         from app.services.meeting_minutes_service import MINUTES_STORE, TASK_STATE
 
@@ -344,7 +360,7 @@ async def stream_meeting_minutes(
 
         if not meeting_data:
             # 最后才退回到 MEETING_STORE（一般不含转录）
-            meeting_data = await service.get_meeting(meeting_id)
+            meeting_data = await service.get_meeting(meeting_id, user_id=current_user_id)
 
         if not meeting_data or meeting_data.get("error"):
             return StreamingResponse(
@@ -353,7 +369,7 @@ async def stream_meeting_minutes(
             )
         
         # 获取 LLM 流式生成器
-        llm_stream = service.get_llm_stream(meeting_id, meeting_data)
+        llm_stream = service.get_llm_stream(meeting_id, meeting_data, user_id=current_user_id)
         
         # 使用 MeetingStreamingService 进行流式生成和保存
         return StreamingResponse(
@@ -391,7 +407,8 @@ async def _error_stream(error_msg: str):
 async def export_meeting_minutes(
     meeting_id: str,
     format: str = "markdown",
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     导出会议纪要
@@ -403,7 +420,7 @@ async def export_meeting_minutes(
     - 文件内容（某些格式）
     """
     service = MeetingService(db)
-    return await service.export_minutes(meeting_id, format)
+    return await service.export_minutes(meeting_id, format, user_id=current_user_id)
 
 
 # ============================================================
@@ -414,7 +431,8 @@ async def export_meeting_minutes(
 async def send_minutes_email(
     meeting_id: str,
     request: SendEmailRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     通过邮件发送会议纪要
@@ -429,7 +447,8 @@ async def send_minutes_email(
     return await service.send_minutes_email(
         meeting_id,
         request.recipients,
-        request.format
+        request.format,
+        user_id=current_user_id
     )
 
 
@@ -437,7 +456,8 @@ async def send_minutes_email(
 async def share_meeting_minutes(
     meeting_id: str,
     request: ShareRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     分享会议纪要
@@ -451,7 +471,11 @@ async def share_meeting_minutes(
     - lark: 飞书
     """
     service = MeetingService(db)
-    return await service.share_minutes(meeting_id, request.share_targets)
+    return await service.share_minutes(
+        meeting_id,
+        request.share_targets,
+        user_id=current_user_id
+    )
 
 
 # ============================================================
@@ -461,17 +485,19 @@ async def share_meeting_minutes(
 @router.get("/{meeting_id}/participants", response_model=List[dict])
 async def get_meeting_participants(
     meeting_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """获取会议参与人列表"""
     service = MeetingService(db)
-    return await service.get_participants(meeting_id)
+    return await service.get_participants(meeting_id, user_id=current_user_id)
 
 
 @router.get("/{meeting_id}/agendas", response_model=List[dict])
 async def get_meeting_agendas(
     meeting_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取会议议程
@@ -479,13 +505,14 @@ async def get_meeting_agendas(
     从处理结果中提取的议程列表
     """
     service = MeetingService(db)
-    return await service.get_agendas(meeting_id)
+    return await service.get_agendas(meeting_id, user_id=current_user_id)
 
 
 @router.get("/{meeting_id}/decisions", response_model=List[dict])
 async def get_meeting_decisions(
     meeting_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取会议决议
@@ -493,13 +520,14 @@ async def get_meeting_decisions(
     从处理结果中提取的决议列表
     """
     service = MeetingService(db)
-    return await service.get_decisions(meeting_id)
+    return await service.get_decisions(meeting_id, user_id=current_user_id)
 
 
 @router.get("/{meeting_id}/action-items", response_model=List[dict])
 async def get_meeting_action_items(
     meeting_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取Action Items
@@ -511,4 +539,4 @@ async def get_meeting_action_items(
     - status: 完成状态
     """
     service = MeetingService(db)
-    return await service.get_action_items(meeting_id)
+    return await service.get_action_items(meeting_id, user_id=current_user_id)

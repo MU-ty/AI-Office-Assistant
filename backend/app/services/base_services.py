@@ -27,7 +27,7 @@ class PolishService:
         self.db = db
         self.normalization_service = AcademicNormalizationService()
     
-    async def create_task(self, task_data: Dict) -> dict:
+    async def create_task(self, task_data: Dict, user_id: int) -> dict:
         """
         创建润色任务
         
@@ -51,6 +51,7 @@ class PolishService:
             
             # 创建任务
             task = PolishTask(
+                user_id=user_id,
                 original_text=original_text,
                 polish_level=polish_level,
                 auto_fix_enabled=str(auto_fix_enabled).lower(),
@@ -129,10 +130,12 @@ class PolishService:
             logger.error(f"创建任务失败: {str(e)}")
             raise
     
-    async def list_tasks(self, skip: int = 0, limit: int = 10, status: Optional[str] = None) -> dict:
+    async def list_tasks(
+        self, user_id: int, skip: int = 0, limit: int = 10, status: Optional[str] = None
+    ) -> dict:
         """获取任务列表"""
         try:
-            query = select(PolishTask)
+            query = select(PolishTask).where(PolishTask.user_id == user_id)
             
             if status:
                 query = query.where(PolishTask.status == status)
@@ -142,7 +145,7 @@ class PolishService:
             tasks = result.scalars().all()
             
             # 统计总数
-            count_query = select(PolishTask)
+            count_query = select(PolishTask).where(PolishTask.user_id == user_id)
             if status:
                 count_query = count_query.where(PolishTask.status == status)
             count_result = await self.db.execute(count_query)
@@ -158,10 +161,12 @@ class PolishService:
             logger.error(f"获取任务列表失败: {str(e)}")
             raise
     
-    async def get_task(self, task_id: int) -> dict:
+    async def get_task(self, task_id: int, user_id: int) -> dict:
         """获取任务详情"""
         try:
-            query = select(PolishTask).where(PolishTask.id == task_id)
+            query = select(PolishTask).where(
+                and_(PolishTask.id == task_id, PolishTask.user_id == user_id)
+            )
             result = await self.db.execute(query)
             task = result.scalars().first()
             
@@ -173,10 +178,14 @@ class PolishService:
             logger.error(f"获取任务详情失败: {str(e)}")
             raise
     
-    async def update_task(self, task_id: int, task_data: Dict) -> dict:
+    async def update_task(self, task_id: int, task_data: Dict, user_id: int) -> dict:
         """更新任务"""
         try:
-            task = await self.db.get(PolishTask, task_id)
+            query = select(PolishTask).where(
+                and_(PolishTask.id == task_id, PolishTask.user_id == user_id)
+            )
+            result = await self.db.execute(query)
+            task = result.scalar_one_or_none()
             if not task:
                 raise ValueError(f"任务 {task_id} 不存在")
             
@@ -206,10 +215,14 @@ class PolishService:
             logger.error(f"更新任务失败: {str(e)}")
             raise
     
-    async def delete_task(self, task_id: int) -> None:
+    async def delete_task(self, task_id: int, user_id: int) -> None:
         """删除任务"""
         try:
-            task = await self.db.get(PolishTask, task_id)
+            query = select(PolishTask).where(
+                and_(PolishTask.id == task_id, PolishTask.user_id == user_id)
+            )
+            result = await self.db.execute(query)
+            task = result.scalar_one_or_none()
             if not task:
                 raise ValueError(f"任务 {task_id} 不存在")
             
@@ -228,10 +241,16 @@ class PolishService:
             logger.error(f"删除任务失败: {str(e)}")
             raise
     
-    async def get_issues(self, task_id: int, filter_type: Optional[str] = None) -> dict:
+    async def get_issues(
+        self, task_id: int, user_id: int, filter_type: Optional[str] = None
+    ) -> dict:
         """获取问题列表"""
         try:
-            task = await self.db.get(PolishTask, task_id)
+            query = select(PolishTask).where(
+                and_(PolishTask.id == task_id, PolishTask.user_id == user_id)
+            )
+            result = await self.db.execute(query)
+            task = result.scalar_one_or_none()
             if not task:
                 raise ValueError(f"任务 {task_id} 不存在")
             
@@ -253,22 +272,36 @@ class PolishService:
             logger.error(f"获取问题列表失败: {str(e)}")
             raise
     
-    async def accept_suggestion(self, task_id: int, issue_id: int, feedback: Optional[str] = None) -> dict:
+    async def accept_suggestion(
+        self,
+        task_id: int,
+        issue_id: int,
+        feedback: Optional[str] = None,
+        user_id: Optional[int] = None
+    ) -> dict:
         """接受建议"""
         try:
             issue = await self.db.get(PolishIssue, issue_id)
             if not issue or issue.task_id != task_id:
                 raise ValueError(f"问题 {issue_id} 不存在或不属于任务 {task_id}")
+
+            task = await self.db.get(PolishTask, task_id)
+            if not task or (user_id is not None and task.user_id != user_id):
+                raise ValueError(f"任务 {task_id} 不存在")
             
             issue.status = "accepted"
             issue.accepted_at = datetime.utcnow()
             
             # 更新任务的修复计数
-            task = await self.db.get(PolishTask, task_id)
             if task:
                 task.fixed_issues = (task.fixed_issues or 0) + 1
                 if task.total_issues > 0:
                     task.accuracy = task.fixed_issues / task.total_issues
+                task.polished_text = self._apply_suggestion(
+                    task.polished_text or task.original_text,
+                    issue.location,
+                    issue.suggested_content
+                )
             
             await self.db.commit()
             await self.db.refresh(issue)
@@ -280,12 +313,22 @@ class PolishService:
             logger.error(f"接受建议失败: {str(e)}")
             raise
     
-    async def reject_suggestion(self, task_id: int, issue_id: int, reason: Optional[str] = None) -> dict:
+    async def reject_suggestion(
+        self,
+        task_id: int,
+        issue_id: int,
+        reason: Optional[str] = None,
+        user_id: Optional[int] = None
+    ) -> dict:
         """拒绝建议"""
         try:
             issue = await self.db.get(PolishIssue, issue_id)
             if not issue or issue.task_id != task_id:
                 raise ValueError(f"问题 {issue_id} 不存在或不属于任务 {task_id}")
+
+            task = await self.db.get(PolishTask, task_id)
+            if not task or (user_id is not None and task.user_id != user_id):
+                raise ValueError(f"任务 {task_id} 不存在")
             
             issue.status = "rejected"
             
@@ -299,11 +342,13 @@ class PolishService:
             logger.error(f"拒绝建议失败: {str(e)}")
             raise
     
-    async def export_result(self, task_id: int, format_type: str = "json") -> dict:
+    async def export_result(self, task_id: int, format_type: str = "json", user_id: Optional[int] = None) -> dict:
         """导出结果"""
         try:
             task = await self.db.get(PolishTask, task_id)
             if not task:
+                raise ValueError(f"任务 {task_id} 不存在")
+            if user_id is not None and task.user_id != user_id:
                 raise ValueError(f"任务 {task_id} 不存在")
             
             # 获取所有问题
@@ -333,6 +378,7 @@ class PolishService:
         """格式化任务响应"""
         return {
             "id": task.id,
+            "user_id": task.user_id,
             "document_id": task.document_id,
             "original_text": task.original_text[:500] + "..." if len(task.original_text) > 500 else task.original_text,
             "polished_text": task.polished_text[:500] + "..." if task.polished_text and len(task.polished_text) > 500 else task.polished_text,
@@ -396,6 +442,17 @@ class PolishService:
             lines.append(f"   状态: {issue.status}")
         
         return "\n".join(lines)
+
+    def _apply_suggestion(self, text: str, location: Dict[str, Any], replacement: str) -> str:
+        """按位置应用建议内容"""
+        try:
+            start = int(location.get("start", 0))
+            end = int(location.get("end", 0))
+            if start < 0 or end <= start or end > len(text):
+                return text
+            return text[:start] + replacement + text[end:]
+        except Exception:
+            return text
 
 
 

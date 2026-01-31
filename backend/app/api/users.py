@@ -17,9 +17,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserLogin, RefreshTokenRequest
 from app.services.user_service import UserService
 from app.utils.logger import get_logger
+from app.utils.exceptions import UserAlreadyExistsError, InvalidCredentialsError, UserNotFoundError
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -36,27 +37,45 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     - **full_name**: 全名
     """
     service = UserService(db)
-    return await service.register_user(user_data)
+    try:
+        return await service.register_user(user_data)
+    except UserAlreadyExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        logger.error(f"注册异常: {e}")
+        raise HTTPException(status_code=500, detail="注册失败")
 
 
 @router.post("/login")
-async def login(username: str, password: str, db: AsyncSession = Depends(get_db)):
+async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)):
     """
     用户登录
     
     返回访问令牌和刷新令牌
     """
     service = UserService(db)
-    return await service.login_user(username, password)
+    try:
+        return await service.login_user(payload.username, payload.password)
+    except InvalidCredentialsError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        logger.error(f"登录异常: {e}")
+        raise HTTPException(status_code=500, detail="登录失败")
 
 
 @router.post("/refresh-token")
-async def refresh_token(refresh_token: str, db: AsyncSession = Depends(get_db)):
+async def refresh_token(payload: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
     """
     使用刷新令牌获取新的访问令牌
     """
     service = UserService(db)
-    return await service.refresh_access_token(refresh_token)
+    try:
+        return await service.refresh_access_token(payload.refresh_token)
+    except InvalidCredentialsError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        logger.error(f"刷新令牌异常: {e}")
+        raise HTTPException(status_code=500, detail="刷新令牌失败")
 
 
 @router.get("/me", response_model=UserResponse)
@@ -68,7 +87,10 @@ async def get_current_user(
     获取当前登录用户信息
     """
     service = UserService(db)
-    return await service.get_user_by_id(current_user_id)
+    try:
+        return await service.get_user_by_id(current_user_id)
+    except UserNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.put("/me", response_model=UserResponse)
@@ -81,7 +103,10 @@ async def update_current_user(
     更新当前用户信息
     """
     service = UserService(db)
-    return await service.update_user(current_user_id, user_data)
+    try:
+        return await service.update_user(current_user_id, user_data)
+    except UserNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/")
@@ -106,7 +131,10 @@ async def get_user(
     获取指定用户信息
     """
     service = UserService(db)
-    return await service.get_user_by_id(user_id)
+    try:
+        return await service.get_user_by_id(user_id)
+    except UserNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -119,7 +147,10 @@ async def update_user(
     更新指定用户信息 (管理员)
     """
     service = UserService(db)
-    return await service.update_user(user_id, user_data)
+    try:
+        return await service.update_user(user_id, user_data)
+    except UserNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -131,4 +162,7 @@ async def delete_user(
     删除指定用户 (管理员)
     """
     service = UserService(db)
-    await service.delete_user(user_id)
+    try:
+        await service.delete_user(user_id)
+    except UserNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
