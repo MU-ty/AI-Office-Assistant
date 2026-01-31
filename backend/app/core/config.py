@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     # 基本配置
     # ============================================================
     DEBUG: bool = True
-    HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    BACKEND_HOST: str = "0.0.0.0"
+    BACKEND_PORT: int = 8000
     
     # 应用信息
     APP_NAME: str = "办公助手Agent"
