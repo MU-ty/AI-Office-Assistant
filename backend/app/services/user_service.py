@@ -29,6 +29,32 @@ class UserService:
     
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def _ensure_default_admin(self) -> None:
+        """确保存在默认管理员账号（仅用于本地测试）"""
+        default_username = "admin"
+        default_email = "admin@example.com"
+        default_password = "Admin@123456"
+
+        existing = await self.get_user_by_username(default_username)
+        if existing:
+            return
+        existing_email = await self.get_user_by_email(default_email)
+        if existing_email:
+            return
+
+        hashed_password = await self.hash_password(default_password)
+        admin = User(
+            username=default_username,
+            email=default_email,
+            full_name="系统管理员",
+            hashed_password=hashed_password,
+            is_active=True
+        )
+        self.db.add(admin)
+        await self.db.commit()
+        await self.db.refresh(admin)
+        logger.info("已创建默认管理员账号: admin / Admin@123456")
     
     async def register_user(self, user_data: UserCreate) -> UserResponse:
         """
@@ -73,6 +99,8 @@ class UserService:
         4. 创建会话记录
         """
         logger.info(f"用户登录: {username}")
+
+        await self._ensure_default_admin()
 
         query = select(User).where(or_(User.username == username, User.email == username))
         result = await self.db.execute(query)
