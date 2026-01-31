@@ -117,6 +117,10 @@ class Settings(BaseSettings):
     QWEN_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     QWEN_MODEL_NAME: str = "qwen-plus"
     
+    # WeKnora RAG 配置
+    WEKNORA_BASE_URL: str = "http://localhost:8080/api/v1"
+    WEKNORA_API_KEY: str = ""
+    
     # ============================================================
     # 任务队列配置 (Celery)
     # ============================================================
