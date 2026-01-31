@@ -4,12 +4,19 @@
 """
 
 from typing import Optional, List, Dict, Any
+import json
 from datetime import datetime
+import os
+import uuid
+import aiohttp
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, and_
 from sqlalchemy.orm import selectinload
 
 from app.models.polish import PolishTask, PolishIssue
+from app.models.translation import TranslationTask, TranslationTerminology
+from app.models.ppt import PPTProject
+from app.core.config import settings
 from app.services.polish_normalization_service import AcademicNormalizationService
 from app.utils.logger import get_logger
 
@@ -464,43 +471,469 @@ class PolishService:
 
 class TranslationService:
     """多语言翻译服务"""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
-    
-    async def create_task(self, task_data) -> dict:
+
+    async def create_task(self, task_data, user_id: int) -> dict:
         """创建翻译任务"""
-        # TODO: 实现任务创建逻辑
         logger.info("创建翻译任务")
-        pass
-    
-    async def list_tasks(self, skip: int, limit: int, status) -> list:
+
+        source_language = task_data.get("source_language") or "auto"
+        target_language = task_data.get("target_language")
+        input_text = task_data.get("input_text")
+        domain = task_data.get("domain") or "general"
+
+        if not target_language:
+            raise ValueError("目标语言不能为空")
+        if not input_text or not input_text.strip():
+            raise ValueError("翻译文本不能为空")
+
+        detected = source_language
+        if source_language in (None, "", "auto"):
+            detected = self._detect_language(input_text)
+
+        terminology = await self._get_terminology_map(user_id, domain)
+        translated_text = await self._translate_with_qwen(
+            input_text.strip(),
+            detected,
+            target_language,
+            terminology,
+            domain
+        )
+        quality_score = self._estimate_quality(input_text, translated_text)
+
+        task = TranslationTask(
+            user_id=user_id,
+            source_text=input_text.strip(),
+            source_language=detected,
+            target_language=target_language,
+            translated_text=translated_text,
+            status="completed",
+            domain=domain,
+            quality_score=quality_score,
+        )
+        self.db.add(task)
+        await self.db.commit()
+        await self.db.refresh(task)
+
+        return self._format_task(task)
+
+    async def list_tasks(self, user_id: int, skip: int, limit: int, status) -> dict:
         """获取任务列表"""
-        pass
-    
-    async def get_task(self, task_id: str) -> dict:
+        query = select(TranslationTask).where(TranslationTask.user_id == user_id)
+        if status:
+            query = query.where(TranslationTask.status == status)
+        query = query.order_by(TranslationTask.created_at.desc()).offset(skip).limit(limit)
+        result = await self.db.execute(query)
+        items = result.scalars().all()
+
+        count_query = select(TranslationTask).where(TranslationTask.user_id == user_id)
+        if status:
+            count_query = count_query.where(TranslationTask.status == status)
+        count_result = await self.db.execute(count_query)
+        total = len(count_result.scalars().all())
+
+        return {
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+            "items": [self._format_task(task) for task in items]
+        }
+
+    async def get_task(self, task_id: str, user_id: int) -> dict:
         """获取任务详情"""
-        pass
-    
-    async def update_task(self, task_id: str, task_data) -> dict:
+        query = select(TranslationTask).where(
+            and_(TranslationTask.id == task_id, TranslationTask.user_id == user_id)
+        )
+        result = await self.db.execute(query)
+        task = result.scalars().first()
+        if not task:
+            raise ValueError("任务不存在")
+        return self._format_task(task)
+
+    async def update_task(self, task_id: str, task_data, user_id: int) -> dict:
         """更新任务"""
-        pass
-    
-    async def delete_task(self, task_id: str) -> None:
+        query = select(TranslationTask).where(
+            and_(TranslationTask.id == task_id, TranslationTask.user_id == user_id)
+        )
+        result = await self.db.execute(query)
+        task = result.scalars().first()
+        if not task:
+            raise ValueError("任务不存在")
+
+        if task_data.get("input_text"):
+            task.source_text = task_data["input_text"]
+            task.status = "processing"
+            terminology = await self._get_terminology_map(user_id, task.domain or "general")
+            task.translated_text = await self._translate_with_qwen(
+                task.source_text,
+                task.source_language,
+                task.target_language,
+                terminology,
+                task.domain or "general"
+            )
+            task.quality_score = self._estimate_quality(task.source_text, task.translated_text)
+            task.status = "completed"
+
+        task.updated_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(task)
+        return self._format_task(task)
+
+    async def delete_task(self, task_id: str, user_id: int) -> None:
         """删除任务"""
-        pass
-    
-    async def get_terminology(self, domain: str = None) -> list:
+        query = select(TranslationTask).where(
+            and_(TranslationTask.id == task_id, TranslationTask.user_id == user_id)
+        )
+        result = await self.db.execute(query)
+        task = result.scalars().first()
+        if not task:
+            raise ValueError("任务不存在")
+        await self.db.delete(task)
+        await self.db.commit()
+
+    async def get_terminology(self, user_id: int, domain: str = None) -> list:
         """获取术语库"""
-        pass
-    
-    async def add_terminology(self, term_data) -> dict:
+        query = select(TranslationTerminology).where(TranslationTerminology.user_id == user_id)
+        if domain:
+            query = query.where(TranslationTerminology.domain == domain)
+        result = await self.db.execute(query.order_by(TranslationTerminology.created_at.desc()))
+        items = result.scalars().all()
+        return [self._format_term(term) for term in items]
+
+    async def add_terminology(self, term_data, user_id: int) -> dict:
         """添加术语"""
-        pass
-    
-    async def rate_translation(self, task_id: str, rating: int, feedback: str) -> dict:
+        original_term = term_data.get("original_term")
+        translation = term_data.get("translation")
+        domain = term_data.get("domain") or "general"
+        if not original_term or not translation:
+            raise ValueError("术语与译文不能为空")
+
+        term = TranslationTerminology(
+            user_id=user_id,
+            original_term=original_term,
+            translation=translation,
+            domain=domain,
+        )
+        self.db.add(term)
+        await self.db.commit()
+        await self.db.refresh(term)
+        return self._format_term(term)
+
+    async def rate_translation(self, task_id: str, rating: int, feedback: str, user_id: int) -> dict:
         """评分翻译结果"""
-        pass
+        query = select(TranslationTask).where(
+            and_(TranslationTask.id == task_id, TranslationTask.user_id == user_id)
+        )
+        result = await self.db.execute(query)
+        task = result.scalars().first()
+        if not task:
+            raise ValueError("任务不存在")
+        task.rating = rating
+        task.feedback = feedback
+        task.updated_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(task)
+        return self._format_task(task)
+
+    async def export_result(self, task_id: str, format_type: str, user_id: int) -> dict:
+        """导出翻译结果"""
+        query = select(TranslationTask).where(
+            and_(TranslationTask.id == task_id, TranslationTask.user_id == user_id)
+        )
+        result = await self.db.execute(query)
+        task = result.scalars().first()
+        if not task:
+            raise ValueError("任务不存在")
+
+        if format_type == "json":
+            return {
+                "task": self._format_task(task),
+                "export_time": datetime.utcnow().isoformat()
+            }
+        if format_type == "txt":
+            lines = []
+            lines.append("=" * 70)
+            lines.append("多语言翻译导出")
+            lines.append("=" * 70)
+            lines.append(f"任务ID: {task.id}")
+            lines.append(f"创建时间: {task.created_at}")
+            lines.append(f"源语言: {task.source_language}")
+            lines.append(f"目标语言: {task.target_language}")
+            lines.append(f"领域: {task.domain}")
+            lines.append("\n原文:")
+            lines.append("-" * 70)
+            lines.append(task.source_text)
+            lines.append("\n译文:")
+            lines.append("-" * 70)
+            lines.append(task.translated_text or "")
+            return "\n".join(lines)
+
+        if format_type in {"pdf", "docx"}:
+            file_url = self._export_as_document(task, format_type)
+            return {
+                "task_id": task.id,
+                "format": format_type,
+                "path": file_url
+            }
+
+        raise ValueError("不支持的导出格式")
+
+    def _export_as_document(self, task: TranslationTask, format_type: str) -> str:
+        upload_dir = settings.UPLOAD_DIR
+        os.makedirs(upload_dir, exist_ok=True)
+
+        filename = f"translation_{task.id}.{format_type}"
+        file_path = os.path.join(upload_dir, filename)
+
+        if format_type == "pdf":
+            success = self._generate_translation_pdf(task, file_path)
+        else:
+            success = self._generate_translation_docx(task, file_path)
+
+        if not success:
+            raise ValueError(f"{format_type.upper()} 生成失败，请检查依赖是否安装")
+
+        return f"/uploads/{filename}"
+
+    def _generate_translation_pdf(self, task: TranslationTask, output_path: str) -> bool:
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+            from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+            import platform
+
+            font_registered = False
+            system = platform.system()
+            font_name = "SimHei"
+            font_paths: List[str] = []
+            if system == "Windows":
+                font_paths = [
+                    "C:\\Windows\\Fonts\\simhei.ttf",
+                    "C:\\Windows\\Fonts\\SimHei.ttf",
+                    "C:\\Windows\\Fonts\\msyh.ttf",
+                    "C:\\Windows\\Fonts\\msyhbd.ttf",
+                ]
+            elif system == "Darwin":
+                font_paths = [
+                    "/Library/Fonts/SimHei.ttf",
+                    "/System/Library/Fonts/STHeiti Medium.ttc",
+                    "/System/Library/Fonts/PingFang.ttc",
+                ]
+            else:
+                font_paths = [
+                    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                    "/usr/share/fonts/wqy-microhei/wqy-microhei.ttc",
+                ]
+
+            for font_path in font_paths:
+                if os.path.exists(font_path):
+                    try:
+                        pdfmetrics.registerFont(TTFont(font_name, font_path))
+                        font_registered = True
+                        break
+                    except Exception:
+                        continue
+
+            if not font_registered:
+                try:
+                    font_name = "STSong-Light"
+                    pdfmetrics.registerFont(UnicodeCIDFont(font_name))
+                    font_registered = True
+                except Exception:
+                    font_registered = False
+
+            styles = getSampleStyleSheet()
+            base_style = styles["BodyText"]
+            if font_registered:
+                base_style.fontName = font_name
+
+            title_style = ParagraphStyle(
+                "TranslationTitle",
+                parent=styles["Title"],
+                fontName=font_name if font_registered else styles["Title"].fontName,
+            )
+            heading_style = ParagraphStyle(
+                "TranslationHeading",
+                parent=styles["Heading2"],
+                fontName=font_name if font_registered else styles["Heading2"].fontName,
+            )
+
+            doc = SimpleDocTemplate(output_path, pagesize=A4)
+            elements = []
+            elements.append(Paragraph("多语言翻译结果", title_style))
+            elements.append(Spacer(1, 12))
+            elements.append(Paragraph(f"源语言：{task.source_language}", base_style))
+            elements.append(Paragraph(f"目标语言：{task.target_language}", base_style))
+            elements.append(Paragraph(f"领域：{task.domain}", base_style))
+            elements.append(Spacer(1, 12))
+
+            elements.append(Paragraph("原文", heading_style))
+            elements.append(Paragraph((task.source_text or "-").replace("\n", "<br/>") , base_style))
+            elements.append(Spacer(1, 12))
+
+            elements.append(Paragraph("译文", heading_style))
+            elements.append(Paragraph((task.translated_text or "-").replace("\n", "<br/>") , base_style))
+
+            doc.build(elements)
+            logger.info(f"翻译 PDF 生成成功: {output_path}")
+            return True
+        except ImportError as e:
+            logger.error(f"reportlab 未安装: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"翻译 PDF 生成失败: {type(e).__name__}: {e}", exc_info=True)
+            return False
+
+    def _generate_translation_docx(self, task: TranslationTask, output_path: str) -> bool:
+        try:
+            from docx import Document
+            from docx.shared import Pt
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+            doc = Document()
+            style = doc.styles["Normal"]
+            style.font.name = "宋体"
+            style.font.size = Pt(12)
+
+            title_para = doc.add_heading("多语言翻译结果", level=1)
+            title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            doc.add_paragraph(f"源语言：{task.source_language}")
+            doc.add_paragraph(f"目标语言：{task.target_language}")
+            doc.add_paragraph(f"领域：{task.domain}")
+
+            doc.add_heading("原文", level=2)
+            for line in (task.source_text or "").splitlines():
+                doc.add_paragraph(line)
+
+            doc.add_heading("译文", level=2)
+            for line in (task.translated_text or "").splitlines():
+                doc.add_paragraph(line)
+
+            doc.save(output_path)
+            logger.info(f"翻译 Word 生成成功: {output_path}")
+            return True
+        except ImportError:
+            logger.error("python-docx 未安装，请运行: pip install python-docx")
+            return False
+        except Exception as e:
+            logger.error(f"翻译 Word 生成失败: {type(e).__name__}: {e}", exc_info=True)
+            return False
+
+    def _format_task(self, task: TranslationTask) -> dict:
+        return {
+            "id": task.id,
+            "user_id": task.user_id,
+            "source_language": task.source_language,
+            "target_language": task.target_language,
+            "input_text": task.source_text[:1000] + "..." if len(task.source_text) > 1000 else task.source_text,
+            "translated_text": task.translated_text,
+            "status": task.status,
+            "domain": task.domain,
+            "quality_score": task.quality_score,
+            "created_at": task.created_at.isoformat() if task.created_at else None,
+            "updated_at": task.updated_at.isoformat() if task.updated_at else None,
+        }
+
+    def _format_term(self, term: TranslationTerminology) -> dict:
+        return {
+            "id": term.id,
+            "user_id": term.user_id,
+            "original_term": term.original_term,
+            "translation": term.translation,
+            "domain": term.domain,
+            "created_at": term.created_at.isoformat() if term.created_at else None,
+        }
+
+    def _detect_language(self, text: str) -> str:
+        try:
+            from langdetect import detect
+
+            lang = detect(text)
+            if lang in {"zh-cn", "zh-tw"}:
+                return "zh"
+            return lang
+        except Exception:
+            return "auto"
+
+    async def _get_terminology_map(self, user_id: int, domain: str) -> dict:
+        query = select(TranslationTerminology).where(
+            and_(TranslationTerminology.user_id == user_id, TranslationTerminology.domain == domain)
+        )
+        result = await self.db.execute(query)
+        items = result.scalars().all()
+        return {term.original_term: term.translation for term in items}
+
+    async def _translate_with_qwen(
+        self,
+        text: str,
+        source_language: str,
+        target_language: str,
+        terminology: dict,
+        domain: str,
+    ) -> str:
+        if not settings.QWEN_API_KEY:
+            return "（未配置 QWEN_API_KEY，无法进行翻译。请在后端 .env 中配置后重试。）"
+
+        terminology_hint = "\n".join(
+            [f"- {k} => {v}" for k, v in terminology.items()]
+        )
+        if terminology_hint:
+            terminology_hint = "术语对照表：\n" + terminology_hint
+        else:
+            terminology_hint = "术语对照表：无"
+
+        prompt = (
+            "你是专业翻译助手，请按要求输出最终译文：\n"
+            "1) 只输出译文，不要解释\n"
+            "2) 保持语气自然、专业、简洁\n"
+            "3) 优先使用给定术语对照表\n\n"
+            f"翻译领域：{domain}\n"
+            f"源语言：{source_language}\n"
+            f"目标语言：{target_language}\n"
+            f"{terminology_hint}\n\n"
+            f"原文：\n{text}"
+        )
+
+        api_url = settings.QWEN_BASE_URL.rstrip("/") + "/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.QWEN_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": settings.QWEN_MODEL_NAME,
+            "messages": [
+                {"role": "system", "content": "你是专业的多语言翻译助手。"},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "max_tokens": 2048,
+            "stream": False,
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(api_url, json=payload, headers=headers, timeout=60) as resp:
+                if resp.status >= 400:
+                    raise ValueError("翻译失败")
+                data = await resp.json()
+        content = (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+        )
+        return content.strip()
+
+    def _estimate_quality(self, source: str, translated: str) -> float:
+        if not source or not translated:
+            return 0.0
+        ratio = min(len(translated) / max(len(source), 1), 1.0)
+        return round(max(0.2, 1 - abs(ratio - 0.9)), 3)
 
 
 # ============================================================
@@ -513,39 +946,415 @@ class PPTService:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def create_project(self, project_data) -> dict:
+    async def create_project(self, project_data, user_id: int) -> dict:
         """创建PPT项目"""
-        # TODO: 实现项目创建逻辑
         logger.info("创建PPT项目")
-        pass
-    
-    async def list_projects(self, skip: int, limit: int, status) -> list:
+
+        title = project_data.get("title")
+        content = project_data.get("source_content")
+        description = project_data.get("description")
+        theme = project_data.get("theme") or "classic"
+        theme_palette = project_data.get("theme_palette")
+
+        if not title:
+            raise ValueError("项目名称不能为空")
+        if not content or not content.strip():
+            raise ValueError("请输入内容")
+
+        project = PPTProject(
+            user_id=user_id,
+            title=title,
+            description=description,
+            content=content.strip(),
+            theme=theme,
+            theme_palette=json.dumps(theme_palette, ensure_ascii=False) if isinstance(theme_palette, dict) else None,
+            status="draft",
+        )
+        self.db.add(project)
+        await self.db.commit()
+        await self.db.refresh(project)
+        return self._format_project(project)
+
+    async def create_project_from_file(
+        self,
+        title: str,
+        file,
+        description: Optional[str],
+        theme: Optional[str],
+        theme_palette: Optional[str],
+        user_id: int
+    ) -> dict:
+        """从文件导入创建PPT项目"""
+        palette_value = None
+        if theme_palette:
+            try:
+                palette_value = json.loads(theme_palette)
+            except Exception:
+                palette_value = None
+        filename = file.filename or "document"
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        if ext not in {"pdf", "docx", "md", "markdown"}:
+            raise ValueError("仅支持 PDF/DOCX/Markdown 文件")
+
+        content = await file.read()
+        if not content:
+            raise ValueError("文件内容为空")
+
+        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+        saved_name = f"ppt_source_{uuid.uuid4().hex}.{ext}"
+        saved_path = os.path.join(settings.UPLOAD_DIR, saved_name)
+        with open(saved_path, "wb") as f:
+            f.write(content)
+
+        parsed_text = self._parse_ppt_source_file(saved_path, ext)
+        if not parsed_text.strip():
+            raise ValueError("未解析到有效内容")
+
+        project = PPTProject(
+            user_id=user_id,
+            title=title,
+            description=description,
+            content=parsed_text.strip(),
+            theme=theme or "classic",
+            theme_palette=json.dumps(palette_value, ensure_ascii=False) if isinstance(palette_value, dict) else None,
+            status="draft",
+        )
+        self.db.add(project)
+        await self.db.commit()
+        await self.db.refresh(project)
+        return self._format_project(project)
+
+    async def list_projects(self, user_id: int, skip: int, limit: int, status) -> dict:
         """获取项目列表"""
-        pass
-    
-    async def get_project(self, project_id: str) -> dict:
+        query = select(PPTProject).where(PPTProject.user_id == user_id)
+        if status:
+            query = query.where(PPTProject.status == status)
+        query = query.order_by(PPTProject.created_at.desc()).offset(skip).limit(limit)
+        result = await self.db.execute(query)
+        items = result.scalars().all()
+
+        count_query = select(PPTProject).where(PPTProject.user_id == user_id)
+        if status:
+            count_query = count_query.where(PPTProject.status == status)
+        count_result = await self.db.execute(count_query)
+        total = len(count_result.scalars().all())
+
+        return {
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+            "items": [self._format_project(item) for item in items],
+        }
+
+    async def get_project(self, project_id: str, user_id: int) -> dict:
         """获取项目详情"""
-        pass
-    
-    async def update_project(self, project_id: str, project_data) -> dict:
+        query = select(PPTProject).where(
+            and_(PPTProject.id == project_id, PPTProject.user_id == user_id)
+        )
+        result = await self.db.execute(query)
+        project = result.scalars().first()
+        if not project:
+            raise ValueError("项目不存在")
+        return self._format_project(project, include_slides=True)
+
+    async def update_project(self, project_id: str, project_data, user_id: int) -> dict:
         """更新项目"""
-        pass
-    
-    async def delete_project(self, project_id: str) -> None:
+        query = select(PPTProject).where(
+            and_(PPTProject.id == project_id, PPTProject.user_id == user_id)
+        )
+        result = await self.db.execute(query)
+        project = result.scalars().first()
+        if not project:
+            raise ValueError("项目不存在")
+
+        if project_data.get("title"):
+            project.title = project_data["title"]
+        if project_data.get("description") is not None:
+            project.description = project_data.get("description")
+        if project_data.get("theme"):
+            project.theme = project_data.get("theme")
+        if project_data.get("theme_palette") is not None:
+            theme_palette = project_data.get("theme_palette")
+            project.theme_palette = (
+                json.dumps(theme_palette, ensure_ascii=False)
+                if isinstance(theme_palette, dict)
+                else None
+            )
+        project.updated_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(project)
+        return self._format_project(project)
+
+    async def delete_project(self, project_id: str, user_id: int) -> None:
         """删除项目"""
-        pass
-    
-    async def generate_slides(self, project_id: str) -> dict:
+        query = select(PPTProject).where(
+            and_(PPTProject.id == project_id, PPTProject.user_id == user_id)
+        )
+        result = await self.db.execute(query)
+        project = result.scalars().first()
+        if not project:
+            raise ValueError("项目不存在")
+        await self.db.delete(project)
+        await self.db.commit()
+
+    async def generate_slides(
+        self,
+        project_id: str,
+        user_id: int,
+        tone: str,
+        theme: Optional[str],
+        theme_palette: Optional[dict]
+    ) -> dict:
         """生成幻灯片"""
-        pass
-    
-    async def get_slides(self, project_id: str) -> list:
+        query = select(PPTProject).where(
+            and_(PPTProject.id == project_id, PPTProject.user_id == user_id)
+        )
+        result = await self.db.execute(query)
+        project = result.scalars().first()
+        if not project:
+            raise ValueError("项目不存在")
+
+        if theme:
+            project.theme = theme
+        if theme_palette is not None:
+            project.theme_palette = (
+                json.dumps(theme_palette, ensure_ascii=False)
+                if isinstance(theme_palette, dict)
+                else None
+            )
+
+        outline = await self._build_outline(project.title, project.content, tone)
+        slides = self._outline_to_slides(outline)
+
+        project.outline_json = json.dumps(outline, ensure_ascii=False)
+        project.slides_json = json.dumps(slides, ensure_ascii=False)
+        project.status = "completed"
+        project.updated_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(project)
+        return self._format_project(project, include_slides=True)
+
+    async def get_slides(self, project_id: str, user_id: int) -> list:
         """获取幻灯片列表"""
-        pass
-    
-    async def export_pptx(self, project_id: str) -> bytes:
+        query = select(PPTProject).where(
+            and_(PPTProject.id == project_id, PPTProject.user_id == user_id)
+        )
+        result = await self.db.execute(query)
+        project = result.scalars().first()
+        if not project:
+            raise ValueError("项目不存在")
+        slides = self._safe_json(project.slides_json, default=[])
+        return slides
+
+    async def export_pptx(self, project_id: str, user_id: int, format_type: str = "pptx") -> dict:
         """导出PPTX文件"""
-        pass
+        if format_type != "pptx":
+            raise ValueError("暂不支持该格式")
+
+        query = select(PPTProject).where(
+            and_(PPTProject.id == project_id, PPTProject.user_id == user_id)
+        )
+        result = await self.db.execute(query)
+        project = result.scalars().first()
+        if not project:
+            raise ValueError("项目不存在")
+
+        slides = self._safe_json(project.slides_json, default=[])
+        if not slides:
+            raise ValueError("请先生成幻灯片")
+
+        file_url = self._export_as_pptx(project, slides)
+        project.file_path = file_url
+        project.updated_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(project)
+        return {"project_id": project.id, "format": "pptx", "path": file_url}
+
+    async def _build_outline(self, title: str, content: str, tone: str) -> dict:
+        if not settings.QWEN_API_KEY:
+            return self._fallback_outline(title, content)
+
+        prompt = (
+            "你是专业PPT策划助手，请输出严格JSON格式，不要解释。\n"
+            "输出格式：{\"title\": str, \"slides\": [{\"title\": str, \"bullets\": [str], \"notes\": str}]}\n"
+            "要求：1) 幻灯片6-10页 2) 重点清晰 3) 语气自然专业 4) 不要出现AI/模型等字眼\n"
+            f"演示主题：{title}\n"
+            f"表达风格：{tone}\n"
+            f"输入内容：\n{content[:60000]}"
+        )
+
+        api_url = settings.QWEN_BASE_URL.rstrip("/") + "/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.QWEN_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": settings.QWEN_MODEL_NAME,
+            "messages": [
+                {"role": "system", "content": "你是专业PPT策划助手。"},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "max_tokens": 1800,
+            "stream": False,
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(api_url, json=payload, headers=headers, timeout=60) as resp:
+                if resp.status >= 400:
+                    raise ValueError("生成失败")
+                data = await resp.json()
+        content = (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+        )
+        try:
+            return json.loads(content)
+        except Exception:
+            return self._fallback_outline(title, content)
+
+    def _fallback_outline(self, title: str, content: str) -> dict:
+        paragraphs = [p.strip() for p in content.split("\n") if p.strip()][:6]
+        slides = []
+        for idx, p in enumerate(paragraphs, 1):
+            slides.append({
+                "title": f"要点 {idx}",
+                "bullets": [p[:80]],
+                "notes": ""
+            })
+        return {"title": title, "slides": slides}
+
+    def _outline_to_slides(self, outline: dict) -> list:
+        slides = outline.get("slides") or []
+        return [
+            {
+                "title": slide.get("title") or "未命名",
+                "bullets": slide.get("bullets") or [],
+                "notes": slide.get("notes") or "",
+            }
+            for slide in slides
+        ]
+
+    def _export_as_pptx(self, project: PPTProject, slides: list) -> str:
+        from pptx import Presentation
+        from pptx.util import Pt
+        from pptx.dml.color import RGBColor
+
+        upload_dir = settings.UPLOAD_DIR
+        os.makedirs(upload_dir, exist_ok=True)
+
+        filename = f"ppt_{project.id}.pptx"
+        file_path = os.path.join(upload_dir, filename)
+
+        prs = Presentation()
+        title_slide_layout = prs.slide_layouts[0]
+        slide = prs.slides.add_slide(title_slide_layout)
+        slide.shapes.title.text = project.title
+        if project.description:
+            slide.placeholders[1].text = project.description
+        self._apply_theme(slide, project.theme, project.theme_palette, RGBColor)
+
+        bullet_layout = prs.slide_layouts[1]
+        for item in slides:
+            slide = prs.slides.add_slide(bullet_layout)
+            slide.shapes.title.text = item.get("title") or ""
+            body = slide.shapes.placeholders[1].text_frame
+            body.clear()
+            for bullet in item.get("bullets", []):
+                p = body.add_paragraph()
+                p.text = bullet
+                p.level = 0
+                p.font.size = Pt(20)
+            self._apply_theme(slide, project.theme, project.theme_palette, RGBColor)
+
+        prs.save(file_path)
+        return f"/uploads/{filename}"
+
+    def _parse_ppt_source_file(self, path: str, ext: str) -> str:
+        if ext in {"md", "markdown"}:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                return f.read()
+        if ext == "docx":
+            from docx import Document
+
+            doc = Document(path)
+            return "\n".join([p.text for p in doc.paragraphs if p.text])
+        if ext == "pdf":
+            import pdfplumber
+
+            texts = []
+            with pdfplumber.open(path) as pdf:
+                for page in pdf.pages:
+                    texts.append(page.extract_text() or "")
+            return "\n".join(texts)
+        return ""
+
+    def _format_project(self, project: PPTProject, include_slides: bool = False) -> dict:
+        payload = {
+            "id": project.id,
+            "title": project.title,
+            "description": project.description,
+            "status": project.status,
+            "created_at": project.created_at.isoformat() if project.created_at else None,
+            "updated_at": project.updated_at.isoformat() if project.updated_at else None,
+            "file_path": project.file_path,
+            "theme": project.theme,
+        }
+        if include_slides:
+            payload["slides"] = self._safe_json(project.slides_json, default=[])
+            payload["outline"] = self._safe_json(project.outline_json, default={})
+            payload["theme_palette"] = self._safe_json(project.theme_palette, default=None)
+        return payload
+
+    def _safe_json(self, value: Optional[str], default):
+        if not value:
+            return default
+
+    def _apply_theme(self, slide, theme: Optional[str], theme_palette: Optional[str], RGBColor) -> None:
+        theme_key = (theme or "classic").lower()
+        themes = {
+            "classic": {"bg": RGBColor(255, 255, 255), "text": RGBColor(30, 41, 59)},
+            "dark": {"bg": RGBColor(15, 23, 42), "text": RGBColor(248, 250, 252)},
+            "ocean": {"bg": RGBColor(226, 240, 255), "text": RGBColor(15, 23, 42)},
+            "forest": {"bg": RGBColor(232, 245, 233), "text": RGBColor(27, 94, 32)},
+        }
+        palette = themes.get(theme_key, themes["classic"])
+        custom_palette = self._safe_json(theme_palette, default=None)
+        if isinstance(custom_palette, dict):
+            bg = custom_palette.get("bg")
+            text = custom_palette.get("text")
+            if isinstance(bg, str) and bg.startswith("#"):
+                palette = {
+                    "bg": self._hex_to_rgb(bg, RGBColor),
+                    "text": self._hex_to_rgb(text, RGBColor) if isinstance(text, str) else palette["text"],
+                }
+
+        background = slide.background
+        fill = background.fill
+        fill.solid()
+        fill.fore_color.rgb = palette["bg"]
+
+        for shape in slide.shapes:
+            if not hasattr(shape, "text_frame"):
+                continue
+            for paragraph in shape.text_frame.paragraphs:
+                for run in paragraph.runs:
+                    run.font.color.rgb = palette["text"]
+
+    def _hex_to_rgb(self, value: str, RGBColor):
+        hex_value = value.lstrip("#")
+        if len(hex_value) != 6:
+            return RGBColor(255, 255, 255)
+        r = int(hex_value[0:2], 16)
+        g = int(hex_value[2:4], 16)
+        b = int(hex_value[4:6], 16)
+        return RGBColor(r, g, b)
+        try:
+            return json.loads(value)
+        except Exception:
+            return default
 
 
 # ============================================================
