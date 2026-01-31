@@ -28,22 +28,13 @@ cmd = [
     sys.executable, "-m", "uvicorn",
     "app.main:app",
     "--reload",
-<<<<<<< HEAD
-    "--port", "8001",
-=======
     "--port", "8003",
->>>>>>> origin/feature/new-function
     "--host", "0.0.0.0"
 ]
 
 print(f"启动命令: {' '.join(cmd)}")
-<<<<<<< HEAD
-print(f"访问地址: http://127.0.0.1:8001")
-print(f"API 文档: http://127.0.0.1:8001/docs")
-=======
 print(f"访问地址: http://127.0.0.1:8003")
 print(f"API 文档: http://127.0.0.1:8003/docs")
->>>>>>> origin/feature/new-function
 print()
 print("=" * 60)
 

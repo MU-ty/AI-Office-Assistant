@@ -7,10 +7,7 @@ import {
 } from "../api";
 import { pollTaskStatusForMinutes } from "../api/streaming";
 import { diagnosticPoll } from "../api/diagnostic";
-<<<<<<< HEAD
-=======
 import { streamMeetingMinutesImproved } from "../api/streaming_improved";
->>>>>>> origin/feature/new-function
 import {
   minutesToMessages,
   ChatMessage,
@@ -66,11 +63,8 @@ export function useMeeting(initialMeetingId?: string) {
   const hasLoadedInitialRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopPollingRef = useRef<(() => void) | null>(null);
-<<<<<<< HEAD
-=======
   const stopSseRef = useRef<(() => void) | null>(null);
   const sseStartedRef = useRef(false);
->>>>>>> origin/feature/new-function
 
   // 1. 先声明状态获取函数
   function getStatus(index: number) {
@@ -129,15 +123,12 @@ export function useMeeting(initialMeetingId?: string) {
         stopPollingRef.current();
       }
 
-<<<<<<< HEAD
-=======
       if (stopSseRef.current) {
         stopSseRef.current();
         stopSseRef.current = null;
       }
       sseStartedRef.current = false;
 
->>>>>>> origin/feature/new-function
       stopPollingRef.current = await diagnosticPoll(
         newTaskId,
         (status) => {
@@ -154,8 +145,6 @@ export function useMeeting(initialMeetingId?: string) {
           if (status.minutes) {
             setMinutes(status.minutes);
           }
-<<<<<<< HEAD
-=======
 
           // 当进入“生成纪要文档”(step=3)阶段时，启动 SSE 逐字输出
           if (
@@ -190,21 +179,17 @@ export function useMeeting(initialMeetingId?: string) {
               },
             });
           }
->>>>>>> origin/feature/new-function
         },
         async () => {
           // 任务完成后，调用纪要接口获取完整数据
           console.log("✅ 诊断轮询完成，开始获取完整纪要");
           setCurrentStep(4);
 
-<<<<<<< HEAD
-=======
           if (stopSseRef.current) {
             stopSseRef.current();
             stopSseRef.current = null;
           }
 
->>>>>>> origin/feature/new-function
           try {
             const minutesData = await fetchMeetingMinutes(meetingId);
             console.log("📄 收到完整纪要数据:", minutesData);
@@ -246,28 +231,22 @@ export function useMeeting(initialMeetingId?: string) {
         (error) => {
           console.error("❌ 诊断轮询错误:", error);
           setIsStarted(false);
-<<<<<<< HEAD
-=======
 
           if (stopSseRef.current) {
             stopSseRef.current();
             stopSseRef.current = null;
           }
->>>>>>> origin/feature/new-function
         },
         1000, // 1 秒轮询一次
       );
     } catch (error) {
       console.error("启动失败:", error);
       setIsStarted(false);
-<<<<<<< HEAD
-=======
 
       if (stopSseRef.current) {
         stopSseRef.current();
         stopSseRef.current = null;
       }
->>>>>>> origin/feature/new-function
     }
   };
 
