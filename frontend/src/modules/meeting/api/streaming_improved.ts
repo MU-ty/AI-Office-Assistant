@@ -12,6 +12,11 @@ import * as React from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8003";
 
+const getAccessToken = () => {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("access_token") || "";
+};
+
 /**
  * 流式生成会议纪要
  * 与后端五步流程同步：
@@ -29,13 +34,22 @@ export function streamMeetingMinutesImproved(
   callbacks: {
     onStreaming?: (chunk: string, fullContent: string) => void;
     onProcessing?: (message: string) => void;
-    onComplete?: (data: any) => void;
+    onComplete?: (data: {
+      status: string;
+      summary?: string;
+      filePath?: string;
+      generatedAt?: string;
+      message?: string;
+    }) => void;
     onError?: (error: Error) => void;
   }
 ) {
-  const eventSource = new EventSource(
-    `${API_BASE}/api/v1/meetings/${meetingId}/minutes/stream`
-  );
+  const token = getAccessToken();
+  const url = new URL(`${API_BASE}/api/v1/meetings/${meetingId}/minutes/stream`);
+  if (token) {
+    url.searchParams.set("access_token", token);
+  }
+  const eventSource = new EventSource(url.toString());
 
   eventSource.addEventListener("message", (event) => {
     try {
@@ -144,11 +158,11 @@ export function useStreamMeetingMinutes(meetingId: string) {
       onStreaming: (chunk, fullContent) => {
         setContent(fullContent);
       },
-      onProcessing: (message) => {
+      onProcessing: () => {
         setIsStreaming(false);
         setIsProcessing(true);
       },
-      onComplete: (data) => {
+      onComplete: () => {
         setIsProcessing(false);
         setIsComplete(true);
       },
@@ -166,13 +180,19 @@ export function useStreamMeetingMinutes(meetingId: string) {
     };
   }, [meetingId]);
 
+  const cleanup = React.useCallback(() => {
+    if (cleanupRef.current) {
+      cleanupRef.current();
+    }
+  }, []);
+
   return {
     content,
     isStreaming,
     isProcessing,
     isComplete,
     error,
-    cleanup: cleanupRef.current || (() => {})
+    cleanup
   };
 }
 

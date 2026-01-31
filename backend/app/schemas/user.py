@@ -3,6 +3,7 @@
 """
 
 from typing import Optional
+from datetime import datetime
 from pydantic import BaseModel
 
 
@@ -27,7 +28,18 @@ class UserResponse(BaseModel):
     email: str
     full_name: Optional[str] = None
     is_active: bool = True
-    created_at: str
+    created_at: datetime
     
     class Config:
         from_attributes = True
+
+
+class UserLogin(BaseModel):
+    """用户登录请求模型"""
+    username: str
+    password: str
+
+
+class RefreshTokenRequest(BaseModel):
+    """刷新令牌请求模型"""
+    refresh_token: str

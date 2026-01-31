@@ -104,7 +104,7 @@ class RejectSuggestionRequest(BaseModel):
 
 class ExportResultRequest(BaseModel):
     """导出结果请求"""
-    format: str = Field(default="docx", description="export format: docx/pdf/txt/html")
+    format: str = Field(default="json", description="export format: json/txt")
     include_comments: bool = Field(default=True, description="include edit comments")
 
 

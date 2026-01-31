@@ -4,6 +4,11 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8003";
 
+const getAccessToken = () => {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("access_token") || "";
+};
+
 /**
  * 监听任务的流式输出（实时接收 MD 内容）
  * @param taskId 任务 ID
@@ -17,9 +22,12 @@ export function streamTaskMinutes(
   onComplete: () => void,
   onError: (error: Error) => void,
 ): () => void {
-  const eventSource = new EventSource(
-    `${API_BASE}/api/v1/meetings/tasks/${taskId}/stream`,
-  );
+  const token = getAccessToken();
+  const url = new URL(`${API_BASE}/api/v1/meetings/tasks/${taskId}/stream`);
+  if (token) {
+    url.searchParams.set("access_token", token);
+  }
+  const eventSource = new EventSource(url.toString());
 
   eventSource.addEventListener("message", (event) => {
     try {
@@ -64,9 +72,12 @@ export async function fetchMeetingMinutesWithStreaming(
   onPartialMinutes: (minutes: string) => void,
   onPartialSummary: (summary: string) => void,
 ) {
-  const eventSource = new EventSource(
-    `${API_BASE}/api/v1/meetings/${meetingId}/minutes/stream`,
-  );
+  const token = getAccessToken();
+  const url = new URL(`${API_BASE}/api/v1/meetings/${meetingId}/minutes/stream`);
+  if (token) {
+    url.searchParams.set("access_token", token);
+  }
+  const eventSource = new EventSource(url.toString());
 
   return new Promise((resolve, reject) => {
     eventSource.addEventListener("message", (event) => {
@@ -85,7 +96,8 @@ export async function fetchMeetingMinutesWithStreaming(
 
     eventSource.addEventListener("complete", (event) => {
       try {
-        const finalData = JSON.parse((event as any).data);
+        const messageEvent = event as MessageEvent<string>;
+        const finalData = JSON.parse(messageEvent.data);
         eventSource.close();
         resolve(finalData);
       } catch (err) {

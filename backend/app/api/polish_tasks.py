@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, status, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.auth import get_current_user_id
 from app.services.base_services import PolishService
 from app.schemas.polish import (
     PolishTaskCreate,
@@ -24,13 +25,14 @@ from app.schemas.polish import (
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
-router = APIRouter(prefix="/api/v1/polish", tags=["学术润色"])
+router = APIRouter(tags=["学术润色"])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=dict)
 async def create_polish_task(
     request: PolishTaskCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     创建学术润色任务
@@ -56,7 +58,9 @@ async def create_polish_task(
             "auto_fix_enabled": request.auto_fix_enabled,
             "document_id": request.document_id,
         }
-        result = await service.create_task(task_data)
+        result = await service.create_task(task_data, user_id=current_user_id)
+        issues_result = await service.get_issues(result["id"], current_user_id)
+        result["issues"] = issues_result["issues"]
         return {
             "code": 200,
             "message": "任务创建成功",
@@ -75,7 +79,8 @@ async def list_polish_tasks(
     skip: int = Query(0, ge=0, description="跳过数量"),
     limit: int = Query(10, ge=1, le=100, description="返回数量"),
     status: Optional[str] = Query(None, description="筛选状态: pending/processing/completed/failed"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取润色任务列表
@@ -92,7 +97,7 @@ async def list_polish_tasks(
     try:
         logger.info(f"获取润色任务列表，skip={skip}, limit={limit}, status={status}")
         service = PolishService(db)
-        result = await service.list_tasks(skip, limit, status)
+        result = await service.list_tasks(current_user_id, skip, limit, status)
         return {
             "code": 200,
             "message": "获取成功",
@@ -106,7 +111,8 @@ async def list_polish_tasks(
 @router.get("/{task_id}", response_model=dict)
 async def get_polish_task(
     task_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取任务详情
@@ -121,10 +127,10 @@ async def get_polish_task(
     try:
         logger.info(f"获取润色任务详情，task_id={task_id}")
         service = PolishService(db)
-        task = await service.get_task(task_id)
+        task = await service.get_task(task_id, current_user_id)
         
         # 获取问题列表
-        issues_result = await service.get_issues(task_id)
+        issues_result = await service.get_issues(task_id, current_user_id)
         task["issues"] = issues_result["issues"]
         
         return {
@@ -144,7 +150,8 @@ async def get_polish_task(
 async def update_polish_task(
     task_id: int,
     request: PolishTaskUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     更新任务
@@ -163,7 +170,7 @@ async def update_polish_task(
         logger.info(f"更新润色任务，task_id={task_id}")
         service = PolishService(db)
         task_data = request.dict(exclude_unset=True)
-        result = await service.update_task(task_id, task_data)
+        result = await service.update_task(task_id, task_data, current_user_id)
         return {
             "code": 200,
             "message": "更新成功",
@@ -180,7 +187,8 @@ async def update_polish_task(
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_polish_task(
     task_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     删除任务
@@ -192,7 +200,7 @@ async def delete_polish_task(
     try:
         logger.info(f"删除润色任务，task_id={task_id}")
         service = PolishService(db)
-        await service.delete_task(task_id)
+        await service.delete_task(task_id, current_user_id)
     except ValueError as e:
         logger.warning(f"任务不存在: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))
@@ -205,7 +213,8 @@ async def delete_polish_task(
 async def get_polish_issues(
     task_id: int,
     filter_type: Optional[str] = Query(None, description="筛选问题类型"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取任务的所有问题
@@ -227,7 +236,7 @@ async def get_polish_issues(
     try:
         logger.info(f"获取润色问题列表，task_id={task_id}, filter_type={filter_type}")
         service = PolishService(db)
-        result = await service.get_issues(task_id, filter_type)
+        result = await service.get_issues(task_id, current_user_id, filter_type)
         return {
             "code": 200,
             "message": "获取成功",
@@ -246,7 +255,8 @@ async def accept_polish_suggestion(
     task_id: int,
     issue_id: int,
     request: Optional[AcceptSuggestionRequest] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     接受润色建议
@@ -266,7 +276,7 @@ async def accept_polish_suggestion(
         logger.info(f"接受建议，task_id={task_id}, issue_id={issue_id}")
         service = PolishService(db)
         feedback = request.feedback if request else None
-        result = await service.accept_suggestion(task_id, issue_id, feedback)
+        result = await service.accept_suggestion(task_id, issue_id, feedback, current_user_id)
         return {
             "code": 200,
             "message": "建议已接受",
@@ -285,7 +295,8 @@ async def reject_polish_suggestion(
     task_id: int,
     issue_id: int,
     request: Optional[RejectSuggestionRequest] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     拒绝润色建议
@@ -305,7 +316,7 @@ async def reject_polish_suggestion(
         logger.info(f"拒绝建议，task_id={task_id}, issue_id={issue_id}")
         service = PolishService(db)
         reason = request.reason if request else None
-        result = await service.reject_suggestion(task_id, issue_id, reason)
+        result = await service.reject_suggestion(task_id, issue_id, reason, current_user_id)
         return {
             "code": 200,
             "message": "建议已拒绝",
@@ -323,7 +334,8 @@ async def reject_polish_suggestion(
 async def export_polish_result(
     task_id: int,
     request: ExportResultRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     导出润色结果
@@ -343,7 +355,7 @@ async def export_polish_result(
     try:
         logger.info(f"导出润色结果，task_id={task_id}, format={request.format}")
         service = PolishService(db)
-        result = await service.export_result(task_id, request.format)
+        result = await service.export_result(task_id, request.format, current_user_id)
         return {
             "code": 200,
             "message": "导出成功",
@@ -357,9 +369,10 @@ async def export_polish_result(
         raise HTTPException(status_code=500, detail="服务器内部错误")
 
 
-@router.get("", response_model=dict, name="get_statistics")
+@router.get("/stats", response_model=dict, name="get_statistics")
 async def get_polish_statistics(
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取润色统计信息
@@ -372,7 +385,7 @@ async def get_polish_statistics(
         service = PolishService(db)
         
         # 获取统计数据
-        all_tasks = await service.list_tasks(0, 10000)  # 获取所有任务
+        all_tasks = await service.list_tasks(current_user_id, 0, 10000)  # 获取所有任务
         tasks = all_tasks.get("items", [])
         
         total_issues = sum(t.get("total_issues", 0) for t in tasks)
@@ -400,11 +413,12 @@ async def get_polish_statistics(
 
 
 @router.get("/{task_id}/export")
-async def export_polish_result(
+async def export_polish_result_get(
     task_id: str,
-    format: str = "markdown",
-    db: AsyncSession = Depends(get_db)
+    format: str = "json",
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """导出润色结果"""
     service = PolishService(db)
-    return await service.export_result(task_id, format)
+    return await service.export_result(int(task_id), format, current_user_id)

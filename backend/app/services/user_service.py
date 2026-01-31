@@ -4,9 +4,8 @@
 """
 
 from typing import List, Optional
-from uuid import UUID
-from datetime import datetime, timedelta
-from sqlalchemy import select
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from passlib.context import CryptContext
 import jwt
@@ -40,9 +39,29 @@ class UserService:
         3. 创建用户记录
         4. 返回用户信息
         """
-        # TODO: 实现注册逻辑
         logger.info(f"用户注册: {user_data.username}")
-        pass
+
+        existing = await self.get_user_by_username(user_data.username)
+        if existing:
+            raise UserAlreadyExistsError("用户名已存在")
+
+        existing_email = await self.get_user_by_email(user_data.email)
+        if existing_email:
+            raise UserAlreadyExistsError("邮箱已存在")
+
+        hashed_password = await self.hash_password(user_data.password)
+        user = User(
+            username=user_data.username,
+            email=user_data.email,
+            full_name=user_data.full_name,
+            hashed_password=hashed_password,
+            is_active=True
+        )
+        self.db.add(user)
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        return UserResponse.model_validate(user)
     
     async def login_user(self, username: str, password: str) -> dict:
         """
@@ -53,9 +72,27 @@ class UserService:
         3. 生成JWT令牌
         4. 创建会话记录
         """
-        # TODO: 实现登录逻辑
         logger.info(f"用户登录: {username}")
-        pass
+
+        query = select(User).where(or_(User.username == username, User.email == username))
+        result = await self.db.execute(query)
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise InvalidCredentialsError()
+
+        if not await self.verify_password(password, user.hashed_password):
+            raise InvalidCredentialsError()
+
+        access_token = await self.generate_jwt_token(str(user.id))
+        refresh_token = await self.generate_refresh_token(str(user.id))
+
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": UserResponse.model_validate(user)
+        }
     
     async def refresh_access_token(self, refresh_token: str) -> dict:
         """
@@ -65,38 +102,85 @@ class UserService:
         2. 解析令牌获取user_id
         3. 生成新的访问令牌
         """
-        # TODO: 实现令牌刷新逻辑
-        pass
+        try:
+            payload = jwt.decode(
+                refresh_token,
+                settings.JWT_SECRET_KEY,
+                algorithms=[settings.JWT_ALGORITHM]
+            )
+            if payload.get("type") != "refresh":
+                raise InvalidCredentialsError("无效的刷新令牌")
+        except jwt.ExpiredSignatureError:
+            raise InvalidCredentialsError("刷新令牌已过期")
+        except jwt.InvalidTokenError:
+            raise InvalidCredentialsError("无效的刷新令牌")
+
+        user_id = payload.get("sub")
+        if not user_id:
+            raise InvalidCredentialsError("无效的刷新令牌")
+
+        access_token = await self.generate_jwt_token(str(user_id))
+        return {
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
     
     async def get_user_by_id(self, user_id: str) -> UserResponse:
         """获取用户信息"""
-        # TODO: 实现获取用户逻辑
-        pass
+        query = select(User).where(User.id == int(user_id))
+        result = await self.db.execute(query)
+        user = result.scalar_one_or_none()
+        if not user:
+            raise UserNotFoundError()
+        return UserResponse.model_validate(user)
     
     async def get_user_by_username(self, username: str) -> Optional[User]:
         """通过用户名查询用户"""
-        # TODO: 实现查询逻辑
-        pass
+        query = select(User).where(User.username == username)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
     
     async def get_user_by_email(self, email: str) -> Optional[User]:
         """通过邮箱查询用户"""
-        # TODO: 实现查询逻辑
-        pass
+        query = select(User).where(User.email == email)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
     
     async def update_user(self, user_id: str, user_data: UserUpdate) -> UserResponse:
         """更新用户信息"""
-        # TODO: 实现更新逻辑
-        pass
+        query = select(User).where(User.id == int(user_id))
+        result = await self.db.execute(query)
+        user = result.scalar_one_or_none()
+        if not user:
+            raise UserNotFoundError()
+
+        if user_data.email is not None:
+            user.email = user_data.email
+        if user_data.full_name is not None:
+            user.full_name = user_data.full_name
+
+        user.updated_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(user)
+        return UserResponse.model_validate(user)
     
     async def delete_user(self, user_id: str) -> None:
         """删除用户 (软删除)"""
-        # TODO: 实现删除逻辑
-        pass
+        query = select(User).where(User.id == int(user_id))
+        result = await self.db.execute(query)
+        user = result.scalar_one_or_none()
+        if not user:
+            raise UserNotFoundError()
+        user.is_active = False
+        user.updated_at = datetime.utcnow()
+        await self.db.commit()
     
     async def list_users(self, skip: int = 0, limit: int = 10) -> List[UserResponse]:
         """获取用户列表"""
-        # TODO: 实现列表查询逻辑
-        pass
+        query = select(User).offset(skip).limit(limit)
+        result = await self.db.execute(query)
+        users = result.scalars().all()
+        return [UserResponse.model_validate(user) for user in users]
     
     async def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """验证密码"""
@@ -108,10 +192,20 @@ class UserService:
     
     async def generate_jwt_token(self, user_id: str, expires_in_minutes: int = 30) -> str:
         """生成JWT访问令牌"""
-        # TODO: 实现JWT生成逻辑
-        pass
+        expire = datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes)
+        payload = {
+            "sub": user_id,
+            "exp": expire,
+            "type": "access"
+        }
+        return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     
     async def generate_refresh_token(self, user_id: str, expires_in_days: int = 7) -> str:
         """生成刷新令牌"""
-        # TODO: 实现刷新令牌生成逻辑
-        pass
+        expire = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
+        payload = {
+            "sub": user_id,
+            "exp": expire,
+            "type": "refresh"
+        }
+        return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)

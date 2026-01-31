@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,6 +26,7 @@ import { DownloadButtons } from "./components/DownloadButtons";
 export default function MeetingModule() {
   const searchParams = useSearchParams();
   const meetingIdFromUrl = searchParams.get("meetingId") || undefined;
+  const [isAuthed, setIsAuthed] = useState(true);
 
   const {
     steps,
@@ -39,6 +41,32 @@ export default function MeetingModule() {
     meetingTitle,
     generatedAt,
   } = useMeeting(meetingIdFromUrl);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("access_token");
+      setIsAuthed(Boolean(token));
+    }
+  }, []);
+
+  if (!isAuthed) {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <Card className="max-w-md p-6 text-center">
+          <h2 className="text-lg font-semibold text-slate-800">请先登录</h2>
+          <p className="mt-2 text-sm text-slate-500">
+            登录后才能创建并查看你的会议纪要。
+          </p>
+          <Link
+            href="/auth/login"
+            className="mt-4 inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm text-white"
+          >
+            前往登录
+          </Link>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex gap-0 overflow-hidden w-full h-full border border-slate-200 rounded-lg shadow-lg">

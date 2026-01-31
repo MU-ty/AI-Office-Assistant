@@ -13,6 +13,7 @@ class PolishTask(Base):
     __tablename__ = "polish_tasks"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=True, comment="关联的用户ID")
     document_id = Column(Integer, nullable=True, comment="关联的文档ID")
     original_text = Column(Text, nullable=False, comment="原始文本")
     polished_text = Column(Text, nullable=True, comment="润色后的文本")
