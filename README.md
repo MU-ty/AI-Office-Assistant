@@ -22,7 +22,7 @@
 `cd backend `
 
 
-`python -m uvicorn app.main:app --port 8000 --reload`
+`python run_dev_server.py`
 
 ### 前端
 
