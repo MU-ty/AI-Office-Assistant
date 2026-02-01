@@ -116,5 +116,40 @@ class WeKnoraService:
     async def agent_chat_stream(self, session_id: str, payload: Dict[str, Any]) -> AsyncGenerator[bytes, None]:
         return self.stream_request("POST", f"/agent-chat/{session_id}", json=payload)
 
+    # =====================
+    # Models
+    # =====================
+    async def list_models(self) -> list:
+        """获取模型列表"""
+        result = await self._request("GET", "/models")
+        # 返回 data 字段中的模型列表，如果是列表则直接返回
+        if isinstance(result, dict):
+            return result.get("data", []) if isinstance(result.get("data"), list) else [result]
+        return result if isinstance(result, list) else []
+
+    async def create_model(
+        self, name: str, model_type: str, source: str, parameters: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """创建模型"""
+        payload = {
+            "name": name,
+            "type": model_type,
+            "source": source,
+            "parameters": parameters,
+        }
+        return await self._request("POST", "/models", json=payload)
+
+    async def get_model(self, model_id: str) -> Dict[str, Any]:
+        """获取模型详情"""
+        return await self._request("GET", f"/models/{model_id}")
+
+    async def update_model(self, model_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """更新模型"""
+        return await self._request("PUT", f"/models/{model_id}", json=payload)
+
+    async def delete_model(self, model_id: str) -> Dict[str, Any]:
+        """删除模型"""
+        return await self._request("DELETE", f"/models/{model_id}")
+
 
 weknora_service = WeKnoraService()
