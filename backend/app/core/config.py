@@ -14,8 +14,17 @@ class Settings(BaseSettings):
     # 基本配置
     # ============================================================
     DEBUG: bool = True
-    HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    BACKEND_HOST: str = "0.0.0.0"
+    BACKEND_PORT: int = 8000
+    
+    # 别名，用于 main.py
+    @property
+    def HOST(self) -> str:
+        return self.BACKEND_HOST
+        
+    @property
+    def PORT(self) -> int:
+        return self.BACKEND_PORT
     
     # 应用信息
     APP_NAME: str = "办公助手Agent"
@@ -71,8 +80,12 @@ class Settings(BaseSettings):
     # ============================================================
     
     CORS_ORIGINS: List[str] = [
+        "http://localhost",
+        "http://localhost:80",
         "http://localhost:3000",
         "http://localhost:5173",
+        "http://127.0.0.1",
+        "http://127.0.0.1:80",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
     ]

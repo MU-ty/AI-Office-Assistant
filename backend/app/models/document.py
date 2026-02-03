@@ -20,6 +20,11 @@ class Document(Base):
     source_url = Column(String(500), nullable=True)
     file_path = Column(String(500), nullable=True)
     meta_info = Column(Text, nullable=True)
+    weknora_knowledge_id = Column(String(100), nullable=True)  # WeKnora 中的知识 ID
+    weknora_kb_id = Column(String(100), nullable=True)         # WeKnora 中的知识库 ID
+    status = Column(String(20), nullable=False, default="pending")  # pending, processing, completed, failed
+    error_message = Column(Text, nullable=True)
+    processing_progress = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

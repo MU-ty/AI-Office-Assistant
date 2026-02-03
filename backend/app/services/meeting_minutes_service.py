@@ -12,7 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import UploadFile, HTTPException
 import os
 import shutil
-import whisper
+try:
+    import whisper
+except ImportError:
+    whisper = None
 import imageio_ffmpeg
 from concurrent.futures import ThreadPoolExecutor
 
@@ -63,6 +66,10 @@ class MeetingMinutesService:
             if ffmpeg_dir not in os.environ["PATH"]:
                 os.environ["PATH"] += os.pathsep + ffmpeg_dir
             
+            if whisper is None:
+                logger.error("Whisper 库未安装。请安装 'openai-whisper' 或配置阿里云 ASR API Key。")
+                raise ImportError("Whisper is not installed. Please configure Aliyun ASR or install local-ai dependencies.")
+
             logger.info(f"Loading Whisper model (ffmpeg: {ffmpeg_path})...")
             # 使用 base 模型，平衡速度和准确性。也可以配置为从环境变量读取模型大小。
             MeetingMinutesService._model = whisper.load_model("base")

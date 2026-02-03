@@ -5,7 +5,7 @@ import type {
   WeeklyReportListResponse
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8003";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
 const getAuthHeaders = () => {
   if (typeof window === "undefined") return {} as Record<string, string>;

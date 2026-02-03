@@ -31,15 +31,16 @@ class RAGService:
         logger.info(f"开始 RAG 问答 (Session: {session_id}): {query}")
 
         # 1. 从 WeKnora 检索相关上下文
-        retrieval_results = await self.weknora.search_knowledge(query, knowledge_base_ids)
+        retrieval_results = await self.weknora.knowledge_search(query, knowledge_base_ids)
         
         # 2. 提取并格式化上下文
         context = ""
         if isinstance(retrieval_results, list):
             for i, item in enumerate(retrieval_results):
                 content = item.get("content", "")
-                source = item.get("source", "未知来源")
-                context += f"资料[{i+1}] (来源: {source}):\n{content}\n\n"
+                # WeKnora 返回的字段是 knowledge_title 或 knowledge_filename
+                title = item.get("knowledge_title") or item.get("knowledge_filename") or "未知来源"
+                context += f"资料[{i+1}] (来源: {title}):\n{content}\n\n"
         
         # 3. 构造系统 Prompt
         system_prompt = f"""你是一个智能办公助手。请根据提供的资料回答用户的问题。
