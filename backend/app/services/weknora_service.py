@@ -126,6 +126,14 @@ class WeKnoraService:
                 response.raise_for_status()
                 return response.json()
 
+    async def upload_document_text(self, knowledge_base_id: str, title: str, content: str) -> Dict[str, Any]:
+        """上传纯文本/Markdown 到知识库"""
+        payload = {
+            "title": title,
+            "content": content,
+        }
+        return await self._request("POST", f"/knowledge-bases/{knowledge_base_id}/knowledge/manual", json=payload)
+
     async def knowledge_search(self, query: str, knowledge_base_ids: List[str], top_k: int = 5) -> List[Dict[str, Any]]:
         """在指定知识库中进行语义检索"""
         payload = {
@@ -139,6 +147,92 @@ class WeKnoraService:
     async def list_models(self) -> List[Dict[str, Any]]:
         """获取 WeKnora 中的模型列表"""
         response = await self._request("GET", "/models")
+        return response.get("data", [])
+
+    # --- 知识库管理 ---
+
+    async def list_knowledge_bases(self) -> Dict[str, Any]:
+        """获取知识库列表"""
+        return await self._request("GET", "/knowledge-bases")
+
+    async def get_knowledge_base(self, kb_id: str) -> Dict[str, Any]:
+        """获取知识库详情"""
+        return await self._request("GET", f"/knowledge-bases/{kb_id}")
+
+    async def create_knowledge_base(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """创建知识库"""
+        # 支持传入字典或解包参数
+        if isinstance(data, dict):
+            payload = data
+        else:
+            # 兼容旧代码调用
+            payload = {"name": data}
+            
+        return await self._request("POST", "/knowledge-bases", json=payload)
+
+    async def update_knowledge_base(self, kb_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """更新知识库"""
+        return await self._request("PUT", f"/knowledge-bases/{kb_id}", json=data)
+
+    async def delete_knowledge_base(self, kb_id: str) -> Dict[str, Any]:
+        """删除知识库"""
+        return await self._request("DELETE", f"/knowledge-bases/{kb_id}")
+
+    # --- 知识内容管理 ---
+
+    async def list_knowledge(self, kb_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """获取知识列表"""
+        return await self._request("GET", f"/knowledge-bases/{kb_id}/knowledge", params=params)
+
+    async def upload_knowledge_file(self, kb_id: str, file_name: str, file_bytes: bytes, content_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """上传文件到知识库"""
+        url = f"{self.base_url}/knowledge-bases/{kb_id}/knowledge/file"
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            files = {"file": (file_name, file_bytes, content_type)}
+            response = await client.post(url, headers={"x-api-key": self.api_key}, files=files, data=data)
+            response.raise_for_status()
+            return response.json()
+
+    async def create_knowledge_url(self, kb_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """从 URL 创建知识"""
+        return await self._request("POST", f"/knowledge-bases/{kb_id}/knowledge/url", json=data)
+
+    async def get_knowledge(self, knowledge_id: str) -> Dict[str, Any]:
+        """获取知识详情"""
+        return await self._request("GET", f"/knowledge/{knowledge_id}")
+
+    async def delete_knowledge(self, knowledge_id: str) -> Dict[str, Any]:
+        """删除知识"""
+        return await self._request("DELETE", f"/knowledge/{knowledge_id}")
+
+    # --- 检索与问答 ---
+
+    async def knowledge_search(self, data: Any, knowledge_base_ids: List[str] = None, top_k: int = 5) -> Any:
+        """知识库搜索"""
+        # 兼容旧代码调用: knowledge_search(query, kb_ids, top_k)
+        if not isinstance(data, dict):
+            return await self._old_knowledge_search(data, knowledge_base_ids, top_k)
+            
+        return await self._request("POST", "/knowledge-search", json=data)
+
+    async def knowledge_chat_stream(self, session_id: str, data: Dict[str, Any]) -> AsyncGenerator[bytes, None]:
+        """知识库问答流"""
+        async for chunk in self.stream_request("POST", f"/knowledge-chat/{session_id}", json=data):
+            yield chunk
+
+    async def agent_chat_stream(self, session_id: str, data: Dict[str, Any]) -> AsyncGenerator[bytes, None]:
+        """Agent 问答流"""
+        async for chunk in self.stream_request("POST", f"/agent-chat/{session_id}", json=data):
+            yield chunk
+
+    # 为了兼容旧代码的辅助方法
+    async def _old_knowledge_search(self, query: str, knowledge_base_ids: List[str], top_k: int = 5) -> List[Dict[str, Any]]:
+        payload = {
+            "query": query,
+            "knowledge_base_ids": knowledge_base_ids,
+            "top_k": top_k
+        }
+        response = await self._request("POST", "/knowledge-search", json=payload)
         return response.get("data", [])
 
 

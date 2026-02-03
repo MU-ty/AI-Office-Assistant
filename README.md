@@ -17,7 +17,13 @@
 
 ## 🚀 快速开始
 
-### 后端
+### 🐳 使用 Docker 部署 (推荐)
+
+详细步骤请参考：[Docker 一键启动指南](file:///d:/Project/AI-Office-Assistant/AI-Office-Assistant/README_DOCKER.md)
+
+### 💻 本地开发环境
+
+#### 后端
 
 `cd backend `
 

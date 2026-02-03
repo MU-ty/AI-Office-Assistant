@@ -33,22 +33,36 @@ class DocumentService:
         self.db = db
         self.weknora = weknora_service
 
-    async def create_document(self, title: str, file: UploadFile, user_id: int) -> dict:
+    async def _get_or_create_default_kb(self, user_id: int) -> str:
+        """获取或为用户创建默认知识库"""
+        # 这里简单处理，先尝试找现有的知识库，没有则创建一个名为 "Default" 的
+        # 在实际生产中，可能需要一个单独的表来记录用户的知识库映射
+        try:
+            kbs = await self.weknora._request("GET", "/knowledge-bases")
+            for kb in kbs.get("data", []):
+                if kb.get("name") == f"User_{user_id}_Default":
+                    return kb.get("id")
+            
+            # 没找到，创建一个
+            new_kb = await self.weknora.create_knowledge_base(
+                name=f"User_{user_id}_Default", 
+                description=f"Default knowledge base for user {user_id}"
+            )
+            return new_kb.get("data", {}).get("id")
+        except Exception as e:
+            logger.error(f"获取或创建 WeKnora 知识库失败: {e}")
+            return None
+
+    async def create_document(self, title: str, file: UploadFile, user_id: int, kb_id: Optional[str] = None) -> dict:
         """
         创建文档
-
-        1. 验证文件类型 (PDF, TXT, DOCX)
-        2. 保存文件
-        3. 解析文档内容
-        4. 提取元数据 (标题、作者、发表日期等)
-        5. 创建文档记录
         """
         logger.info(f"创建文档: {title}")
 
         filename = file.filename or "document"
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-        if ext not in {"pdf", "txt", "docx"}:
-            raise ValueError("仅支持 PDF/TXT/DOCX 文件")
+        if ext not in {"pdf", "txt", "docx", "md"}:
+            raise ValueError("仅支持 PDF/TXT/DOCX/MD 文件")
 
         os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
         safe_name = f"doc_{uuid.uuid4().hex}.{ext}"
@@ -72,6 +86,19 @@ class DocumentService:
             "ext": ext,
         }
 
+        # --- 同步到 WeKnora ---
+        # 如果未提供 kb_id，则使用默认知识库
+        weknora_kb_id = kb_id or await self._get_or_create_default_kb(user_id)
+        weknora_doc_id = None
+        if weknora_kb_id:
+            try:
+                # 重新打开文件进行上传
+                weknora_result = await self.weknora.upload_document_file(weknora_kb_id, save_path)
+                weknora_doc_id = weknora_result.get("data", {}).get("id")
+                logger.info(f"文档同步到 WeKnora 成功: {weknora_doc_id} (KB: {weknora_kb_id})")
+            except Exception as e:
+                logger.error(f"同步文档到 WeKnora 失败: {e}")
+
         doc = Document(
             user_id=user_id,
             title=doc_title,
@@ -81,6 +108,8 @@ class DocumentService:
             source_url=None,
             file_path=save_path,
             meta_info=json.dumps(meta_info, ensure_ascii=False),
+            weknora_knowledge_id=weknora_doc_id,
+            weknora_kb_id=weknora_kb_id
         )
         self.db.add(doc)
         await self.db.commit()
@@ -88,27 +117,40 @@ class DocumentService:
 
         return self._format_document(doc)
 
-    async def create_document_from_text(self, title: str, content: str, user_id: int) -> dict:
+    async def create_document_from_text(self, title: str, content: str, user_id: int, kb_id: Optional[str] = None) -> dict:
         """从文本创建文档"""
         if not content or not content.strip():
             raise ValueError("文本不能为空")
 
+        # --- 同步到 WeKnora ---
+        weknora_kb_id = kb_id or await self._get_or_create_default_kb(user_id)
+        weknora_doc_id = None
+        doc_title = title or "文本输入"
+        if weknora_kb_id:
+            try:
+                weknora_result = await self.weknora.upload_document_text(weknora_kb_id, doc_title, content)
+                weknora_doc_id = weknora_result.get("data", {}).get("id")
+            except Exception as e:
+                logger.error(f"文本同步到 WeKnora 失败: {e}")
+
         doc = Document(
             user_id=user_id,
-            title=title or "文本输入",
+            title=doc_title,
             content=content.strip(),
             document_type="source",
             source_type="text",
             source_url=None,
             file_path=None,
             meta_info=None,
+            weknora_knowledge_id=weknora_doc_id,
+            weknora_kb_id=weknora_kb_id
         )
         self.db.add(doc)
         await self.db.commit()
         await self.db.refresh(doc)
         return self._format_document(doc)
 
-    async def create_document_from_url(self, title: str, url: str, user_id: int) -> dict:
+    async def create_document_from_url(self, title: str, url: str, user_id: int, kb_id: Optional[str] = None) -> dict:
         """从URL导入文档"""
         if not url or not url.strip():
             raise ValueError("URL不能为空")
@@ -123,15 +165,28 @@ class DocumentService:
         if not text.strip():
             raise ValueError("未解析到有效文本")
 
+        # --- 同步到 WeKnora ---
+        weknora_kb_id = kb_id or await self._get_or_create_default_kb(user_id)
+        weknora_doc_id = None
+        doc_title = title or "网页导入"
+        if weknora_kb_id:
+            try:
+                weknora_result = await self.weknora.upload_document_text(weknora_kb_id, doc_title, text)
+                weknora_doc_id = weknora_result.get("data", {}).get("id")
+            except Exception as e:
+                logger.error(f"URL同步到 WeKnora 失败: {e}")
+
         doc = Document(
             user_id=user_id,
-            title=title or "网页导入",
+            title=doc_title,
             content=text.strip(),
             document_type="source",
             source_type="url",
             source_url=url,
             file_path=None,
             meta_info=None,
+            weknora_knowledge_id=weknora_doc_id,
+            weknora_kb_id=weknora_kb_id
         )
         self.db.add(doc)
         await self.db.commit()
@@ -148,7 +203,7 @@ class DocumentService:
         docs = result.scalars().all()
         return [self._format_document(doc) for doc in docs]
 
-    async def get_document(self, doc_id: str, user_id: int) -> dict:
+    async def get_document(self, doc_id: int, user_id: int) -> dict:
         """获取文档详情 (本地数据库)"""
         query = select(Document).where(and_(Document.id == doc_id, Document.user_id == user_id))
         result = await self.db.execute(query)
@@ -162,7 +217,7 @@ class DocumentService:
             payload["latest_summary"] = summary
         return payload
 
-    async def update_document(self, doc_id: str, doc_data: Dict, user_id: int) -> dict:
+    async def update_document(self, doc_id: int, doc_data: Dict, user_id: int) -> dict:
         """更新文档信息 (标签、分类等)"""
         query = select(Document).where(and_(Document.id == doc_id, Document.user_id == user_id))
         result = await self.db.execute(query)
@@ -177,15 +232,30 @@ class DocumentService:
         doc.updated_at = datetime.utcnow()
         await self.db.commit()
         await self.db.refresh(doc)
+
+        # 同步更新 WeKnora 中的标题
+        if doc.weknora_knowledge_id:
+            try:
+                await self.weknora.update_document(doc.weknora_knowledge_id, title=doc.title)
+            except Exception as e:
+                logger.error(f"同步更新 WeKnora 标题失败: {e}")
+
         return self._format_document(doc)
 
-    async def delete_document(self, doc_id: str, user_id: int) -> None:
+    async def delete_document(self, doc_id: int, user_id: int) -> None:
         """删除文档"""
         query = select(Document).where(and_(Document.id == doc_id, Document.user_id == user_id))
         result = await self.db.execute(query)
         doc = result.scalars().first()
         if not doc:
             raise ValueError("文档不存在")
+
+        # 同步从 WeKnora 删除
+        if doc.weknora_knowledge_id:
+            try:
+                await self.weknora.delete_document(doc.weknora_knowledge_id)
+            except Exception as e:
+                logger.error(f"同步删除 WeKnora 文档失败: {e}")
 
         await self.db.execute(delete(DocumentSummary).where(DocumentSummary.document_id == doc.id))
         await self.db.delete(doc)
@@ -195,42 +265,100 @@ class DocumentService:
     # WeKnora 整合逻辑
     # =====================
 
-    async def search_similar(self, query: str, knowledge_base_ids: List[str], limit: int = 10) -> List[dict]:
+    async def search_similar(self, query: str, knowledge_base_ids: List[str] = None, limit: int = 10) -> List[dict]:
         """使用 WeKnora 进行语义搜索"""
         logger.info(f"使用 WeKnora 搜索相似文献: {query}")
+        # 如果没有提供知识库ID，这里可以默认搜索所有相关的或者默认的
         results = await self.weknora.knowledge_search(query, knowledge_base_ids, top_k=limit)
         return results
 
-    async def get_document_details(self, doc_id: str) -> dict:
-        """从 WeKnora 获取文档详情"""
-        return await self.weknora.get_document(doc_id)
-
-    async def summarize_document(self, doc_id: str) -> dict:
-        """使用 WeKnora 内容生成文档摘要"""
-        logger.info(f"开始为文档生成摘要: {doc_id}")
-        content = await self.weknora.get_document_full_content(doc_id)
-        if not content:
-            return {"success": False, "message": "未找到文档内容或文档尚未解析完成"}
+    async def get_document_details(self, doc_id: int) -> dict:
+        """获取文档详情 (自动映射 ID)"""
+        # 先查本地找到 WeKnora ID
+        query = select(Document).where(Document.id == doc_id)
+        result = await self.db.execute(query)
+        doc = result.scalars().first()
         
-        summary = await llm_service.generate_document_summary(content)
-        return {"success": True, "data": {"summary": summary}}
+        if doc and doc.weknora_knowledge_id:
+            return await self.weknora.get_document(doc.weknora_knowledge_id)
+        
+        raise ValueError("文档未同步到 WeKnora 或不存在")
 
-    async def get_document_concepts(self, doc_id: str) -> dict:
-        """从 WeKnora 内容获取文档关键概念"""
-        logger.info(f"开始提取文档关键概念: {doc_id}")
-        content = await self.weknora.get_document_full_content(doc_id)
+    async def summarize_document(self, doc_id: int, user_id: int) -> dict:
+        """使用 WeKnora 内容生成文档摘要并持久化"""
+        logger.info(f"开始为文档生成摘要: {doc_id}")
+        
+        query = select(Document).where(Document.id == doc_id)
+        result = await self.db.execute(query)
+        doc = result.scalars().first()
+        
+        if not doc:
+            return {"success": False, "message": "文档不存在"}
+
+        content = ""
+        if doc.weknora_knowledge_id:
+            content = await self.weknora.get_document_full_content(doc.weknora_knowledge_id)
+        
+        if not content:
+            content = doc.content
+        
         if not content:
             return {"success": False, "message": "未找到文档内容"}
+        
+        summary_text = await llm_service.generate_document_summary(content)
+        
+        # --- 持久化摘要到数据库 ---
+        summary = DocumentSummary(
+            document_id=doc.id,
+            user_id=user_id,
+            summary_level="paragraph",
+            summary_text=summary_text,
+            model_name=llm_service.model
+        )
+        self.db.add(summary)
+        await self.db.commit()
+        await self.db.refresh(summary)
+
+        return {"success": True, "data": self._format_summary(summary)}
+
+    async def get_document_concepts(self, doc_id: int) -> dict:
+        """从 WeKnora 内容获取文档关键概念"""
+        logger.info(f"开始提取文档关键概念: {doc_id}")
+        
+        query = select(Document).where(Document.id == doc_id)
+        result = await self.db.execute(query)
+        doc = result.scalars().first()
+        
+        if not doc: return {"success": False, "message": "文档不存在"}
+
+        content = ""
+        if doc.weknora_knowledge_id:
+            content = await self.weknora.get_document_full_content(doc.weknora_knowledge_id)
+        
+        if not content: content = doc.content
+        
+        if not content: return {"success": False, "message": "未找到文档内容"}
         
         concepts = await llm_service.extract_document_concepts(content)
         return {"success": True, "data": concepts}
 
-    async def get_document_citations(self, doc_id: str) -> dict:
+    async def get_document_citations(self, doc_id: int) -> dict:
         """从 WeKnora 内容获取文档引用关系"""
         logger.info(f"开始提取文档引用关系: {doc_id}")
-        content = await self.weknora.get_document_full_content(doc_id)
-        if not content:
-            return {"success": False, "message": "未找到文档内容"}
+        
+        query = select(Document).where(Document.id == doc_id)
+        result = await self.db.execute(query)
+        doc = result.scalars().first()
+        
+        if not doc: return {"success": False, "message": "文档不存在"}
+
+        content = ""
+        if doc.weknora_knowledge_id:
+            content = await self.weknora.get_document_full_content(doc.weknora_knowledge_id)
+        
+        if not content: content = doc.content
+        
+        if not content: return {"success": False, "message": "未找到文档内容"}
         
         citations = await llm_service.extract_document_citations(content)
         return {"success": True, "data": citations}
@@ -242,7 +370,7 @@ class DocumentService:
     def _parse_file(self, path: str, ext: str) -> str:
         if ext == "pdf":
             return self._parse_pdf(path)
-        if ext == "txt":
+        if ext in {"txt", "md"}:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 return f.read()
         if ext == "docx":
@@ -285,6 +413,8 @@ class DocumentService:
             "source_type": doc.source_type,
             "source_url": doc.source_url,
             "file_path": doc.file_path,
+            "weknora_knowledge_id": doc.weknora_knowledge_id,
+            "weknora_kb_id": doc.weknora_kb_id,
             "created_at": doc.created_at,
             "updated_at": doc.updated_at,
         }

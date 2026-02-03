@@ -31,7 +31,7 @@ class RAGService:
         logger.info(f"开始 RAG 问答 (Session: {session_id}): {query}")
 
         # 1. 从 WeKnora 检索相关上下文
-        retrieval_results = await self.weknora.search_knowledge(query, knowledge_base_ids)
+        retrieval_results = await self.weknora.knowledge_search(query, knowledge_base_ids)
         
         # 2. 提取并格式化上下文
         context = ""

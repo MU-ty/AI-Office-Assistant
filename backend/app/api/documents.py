@@ -63,18 +63,30 @@ async def create_knowledge_base(
 ):
     """在 WeKnora 中创建新的知识库"""
     from app.services.weknora_service import weknora_service
-    return await weknora_service.create_knowledge_base(request.name, request.description)
+    return await weknora_service.create_knowledge_base({
+        "name": request.name,
+        "description": request.description
+    })
 
 
 @router.post("/ask")
 async def ask_with_rag(
-    request: AskRequest
+    request: AskRequest,
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """基于知识库回答问题 (RAG)"""
     from app.services.rag_service import rag_service
+    
+    # 如果没有提供知识库ID，尝试获取用户的默认知识库
+    kb_ids = request.knowledge_base_ids
+    if not kb_ids:
+        from app.services.document_service import DocumentService
+        # 这里只是一个占位逻辑，实际可以从 db 中获取
+        kb_ids = [f"User_{current_user_id}_Default"]
+
     return await rag_service.answer_with_knowledge(
         request.query, 
-        request.knowledge_base_ids, 
+        kb_ids, 
         request.session_id
     )
 
@@ -83,13 +95,14 @@ async def ask_with_rag(
 async def upload_document(
     title: str = Form(...),
     file: UploadFile = File(...),
+    kb_id: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
-    """上传新文档"""
+    """上传新文档 (支持 PDF, TXT, DOCX, MD)"""
     try:
         service = DocumentService(db)
-        result = await service.create_document(title, file, current_user_id)
+        result = await service.create_document(title, file, current_user_id, kb_id)
         return {"code": 200, "message": "上传成功", "data": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -107,7 +120,7 @@ async def upload_document_text(
     """文本上传"""
     try:
         service = DocumentService(db)
-        result = await service.create_document_from_text(request.title, request.content, current_user_id)
+        result = await service.create_document_from_text(request.title, request.content, current_user_id, request.kb_id)
         return {"code": 200, "message": "上传成功", "data": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -125,7 +138,7 @@ async def upload_document_url(
     """URL导入"""
     try:
         service = DocumentService(db)
-        result = await service.create_document_from_url(request.title, request.url, current_user_id)
+        result = await service.create_document_from_url(request.title, request.url, current_user_id, request.kb_id)
         return {"code": 200, "message": "导入成功", "data": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -154,7 +167,7 @@ async def list_documents(
 
 @router.get("/{doc_id}")
 async def get_document_details(
-    doc_id: str,
+    doc_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
@@ -176,7 +189,7 @@ async def get_document_details(
 
 @router.put("/{doc_id}")
 async def update_document(
-    doc_id: str,
+    doc_id: int,
     request: DocumentUpdate,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
@@ -195,7 +208,7 @@ async def update_document(
 
 @router.delete("/{doc_id}")
 async def delete_document(
-    doc_id: str,
+    doc_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
@@ -213,14 +226,14 @@ async def delete_document(
 
 @router.post("/{doc_id}/summarize")
 async def summarize_document(
-    doc_id: str,
+    doc_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
     """生成文档摘要"""
     try:
         service = DocumentService(db)
-        return await service.summarize_document(doc_id)
+        return await service.summarize_document(doc_id, current_user_id)
     except Exception as e:
         logger.error(f"生成摘要失败: {e}")
         raise HTTPException(status_code=500, detail="生成失败")
@@ -228,7 +241,7 @@ async def summarize_document(
 
 @router.get("/{doc_id}/concepts")
 async def get_document_concepts(
-    doc_id: str,
+    doc_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
@@ -243,7 +256,7 @@ async def get_document_concepts(
 
 @router.get("/{doc_id}/citations")
 async def get_document_citations(
-    doc_id: str,
+    doc_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):

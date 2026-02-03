@@ -22,11 +22,42 @@
 
 启动成功后，您可以通过以下地址访问各项服务：
 
-- **前端应用**: [http://localhost](http://localhost) (由 Nginx 转发)
+### 1. 主项目 (AI-Office-Assistant)
+- **前端应用**: [http://localhost](http://localhost) (80 端口)
 - **后端接口文档**: [http://localhost/api/docs](http://localhost/api/docs)
 - **MinIO 管理后台**: [http://localhost:9001](http://localhost:9001) (用户名: `minio_user`, 密码: `minio_password`)
 - **Grafana 监控面板**: [http://localhost:3001](http://localhost:3001) (用户名: `admin`, 密码: `admin_password`)
-- **RabbitMQ 管理后台**: [http://localhost:15672](http://localhost:15672) (用户名: `rabbitmq_user`, 密码: `rabbitmq_password`)
+
+### 2. WeKnora 知识库服务
+- **WeKnora UI**: [http://localhost:81](http://localhost:81) (由于 80 端口已被占用，默认映射至 81)
+- **WeKnora API**: [http://localhost:8081](http://localhost:8081)
+- **MinIO (WeKnora 专用)**: [http://localhost:9003](http://localhost:9003)
+
+---
+
+## 🚀 WeKnora 服务启动步骤
+
+WeKnora 是项目依赖的核心知识库/RAG 服务，位于 `WeKnora/` 目录下。
+
+1. **进入目录**:
+   ```bash
+   cd WeKnora
+   ```
+
+2. **配置环境**:
+   ```bash
+   # 复制环境配置文件
+   cp .env.example .env
+   # 根据需要修改端口或 API 密钥
+   ```
+
+3. **启动服务**:
+   ```bash
+   # 推荐启动完整版（包含向量数据库、图数据库等）
+   docker-compose --profile full up -d --build
+   ```
+
+---
 
 ## 🛠️ 常用维护命令
 
@@ -72,5 +103,6 @@
 ## ⚠️ 注意事项
 
 - **首次构建**: 由于后端包含大型 AI 依赖库（如 torch, transformers），首次构建镜像可能需要较长时间（视网速而定，建议使用镜像加速）。
+- **WeKnora 构建报错**: 如果在构建 WeKnora 时遇到 `duckdb extension download failed` 错误，请检查 `WeKnora/docker/Dockerfile.app`。目前已通过注释掉 `download_spatial` 步骤来规避网络下载问题。
 - **数据持久化**: 数据库和存储数据保存在 Docker 命名卷中，即使容器被删除，数据依然存在。
-- **内存建议**: 建议运行环境至少具备 4GB 以上空闲内存。
+- **内存建议**: 建议运行环境至少具备 8GB 以上空闲内存（如果同时运行主项目和 WeKnora 完整版）。
