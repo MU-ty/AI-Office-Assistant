@@ -275,7 +275,7 @@ export default function WeeklyReportModule() {
 
   return (
     <div className="flex-1 flex gap-0 overflow-hidden w-full h-full border border-slate-200 rounded-lg shadow-lg">
-      <div className="w-80 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0">
+      <div className="w-[30rem] bg-slate-50 border-r border-slate-200 flex flex-col shrink-0">
         <div className="p-6 border-b border-slate-200 bg-white">
           <h2 className="text-lg font-semibold text-slate-800">周报整理</h2>
           <p className="text-xs text-slate-500 mt-1">基于工作记录自动汇总，可自行润色</p>
