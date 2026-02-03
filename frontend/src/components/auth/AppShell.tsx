@@ -31,6 +31,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
     }
   }, [pathname]);
 
+  // 辅助函数：检查当前路径是否匹配导航项
+  const isActive = (path: string) => {
+    if (path === "/") {
+      return pathname === path;
+    }
+    return pathname.startsWith(path);
+  };
+
   if (isAuthRoute) {
     return <div className="flex-1 overflow-y-auto">{children}</div>;
   }
@@ -46,77 +54,102 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <nav className="flex-1 px-4 py-4 space-y-1">
           <Link
             href="/meeting"
-            className="flex items-center gap-3 px-4 py-3 bg-blue-50 text-blue-700 rounded-xl cursor-pointer font-medium"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer font-medium transition-colors ${
+              isActive("/meeting")
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
           >
             <LayoutDashboard className="w-5 h-5" />
             会议纪要
           </Link>
           <Link
             href="/weekly"
-            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer font-medium transition-colors ${
+              isActive("/weekly")
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
           >
             <LayoutDashboard className="w-5 h-5" />
             周报生成
           </Link>
           <Link
             href="/polish"
-            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer font-medium transition-colors ${
+              isActive("/polish")
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
           >
             <BookOpenCheck className="w-5 h-5" />
             学术润色
           </Link>
           <Link
             href="/documents"
-            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer font-medium transition-colors ${
+              isActive("/documents")
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
           >
             <FileText className="w-5 h-5" />
             文献摘要
           </Link>
           <Link
             href="/knowledge"
-            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer font-medium transition-colors ${
+              isActive("/knowledge")
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
           >
             <Database className="w-5 h-5" />
             知识库管理
           </Link>
           <Link
             href="/translation"
-            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer font-medium transition-colors ${
+              isActive("/translation")
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
           >
             <Languages className="w-5 h-5" />
             多语言翻译
           </Link>
           <Link
             href="/ppt"
-            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer font-medium transition-colors ${
+              isActive("/ppt")
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
           >
             <Presentation className="w-5 h-5" />
             PPT生成
           </Link>
-          {/* <Link
-            href="/auth/login"
-            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
-          >
-            <User className="w-5 h-5" />
-            登录 / 注册
-          </Link> */}
           <Link
             href="/history"
-            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer font-medium transition-colors ${
+              isActive("/history")
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
           >
             <History className="w-5 h-5" />
             历史记录
           </Link>
-          <div className="flex items-center gap-3 px-4 py-3 text-slate-400 rounded-xl cursor-not-allowed">
-            <Settings className="w-5 h-5" />
-            全局设置 (P1)
-          </div>
         </nav>
 
         <div className="p-4 border-t">
           <Link
             href="/profile"
-            className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg transition-colors"
+            className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${
+              isActive("/profile")
+                ? "bg-blue-50"
+                : "hover:bg-slate-50"
+            }`}
           >
             <div className="w-9 h-9 bg-slate-200 rounded-full flex items-center justify-center">
               <User className="w-5 h-5 text-slate-500" />
