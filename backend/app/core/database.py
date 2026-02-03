@@ -100,6 +100,28 @@ async def _ensure_sqlite_schema(conn):
     """修复 SQLite 旧表缺失列的问题"""
     try:
         migrations = {
+            "documents": [
+                ("user_id", "INTEGER"),
+                ("source_type", "VARCHAR(50)"),
+                ("source_url", "VARCHAR(500)"),
+                ("file_path", "VARCHAR(500)"),
+                ("meta_info", "TEXT"),
+            ],
+            "ppt_projects": [
+                ("user_id", "INTEGER"),
+                ("outline_json", "TEXT"),
+                ("slides_json", "TEXT"),
+                ("file_path", "VARCHAR(500)"),
+                ("theme", "VARCHAR(50)"),
+                ("theme_palette", "TEXT"),
+            ],
+            "translation_tasks": [
+                ("user_id", "INTEGER"),
+                ("domain", "VARCHAR(50)"),
+                ("quality_score", "FLOAT"),
+                ("rating", "INTEGER"),
+                ("feedback", "TEXT"),
+            ],
             "work_logs": [
                 ("user_id", "INTEGER"),
             ],

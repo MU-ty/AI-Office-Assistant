@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mic2, LayoutDashboard, History, Settings, User, BookOpenCheck } from "lucide-react";
+import { Mic2, LayoutDashboard, History, Settings, User, BookOpenCheck, FileText, Languages, Presentation, Database } from "lucide-react";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -65,6 +65,34 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <BookOpenCheck className="w-5 h-5" />
             学术润色
           </Link>
+          <Link
+            href="/documents"
+            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+          >
+            <FileText className="w-5 h-5" />
+            文献摘要
+          </Link>
+          <Link
+            href="/knowledge"
+            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+          >
+            <Database className="w-5 h-5" />
+            知识库管理
+          </Link>
+          <Link
+            href="/translation"
+            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+          >
+            <Languages className="w-5 h-5" />
+            多语言翻译
+          </Link>
+          <Link
+            href="/ppt"
+            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+          >
+            <Presentation className="w-5 h-5" />
+            PPT生成
+          </Link>
           {/* <Link
             href="/auth/login"
             className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
@@ -72,10 +100,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <User className="w-5 h-5" />
             登录 / 注册
           </Link> */}
-          <div className="flex items-center gap-3 px-4 py-3 text-slate-400 rounded-xl cursor-not-allowed">
+          <Link
+            href="/history"
+            className="flex items-center gap-3 px-4 py-3 text-slate-700 rounded-xl hover:bg-slate-100"
+          >
             <History className="w-5 h-5" />
-            历史记录 (P1)
-          </div>
+            历史记录
+          </Link>
           <div className="flex items-center gap-3 px-4 py-3 text-slate-400 rounded-xl cursor-not-allowed">
             <Settings className="w-5 h-5" />
             全局设置 (P1)
@@ -83,7 +114,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="p-4 border-t">
-          <div className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg transition-colors">
+          <Link
+            href="/profile"
+            className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg transition-colors"
+          >
             <div className="w-9 h-9 bg-slate-200 rounded-full flex items-center justify-center">
               <User className="w-5 h-5 text-slate-500" />
             </div>
@@ -91,7 +125,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <p className="font-medium">{displayName}</p>
               <p className="text-slate-500 text-xs">{planLabel}</p>
             </div>
-          </div>
+          </Link>
           <button
             type="button"
             className="mt-3 w-full rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import KnowledgeBaseSelector from "@/components/knowledge/KnowledgeBaseSelector";
 import {
   acceptPolishIssue,
   createPolishTask,
@@ -30,6 +31,7 @@ export default function PolishModule() {
   const [issues, setIssues] = useState<PolishIssue[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
 
   const totalIssues = useMemo(() => issues.length, [issues]);
 
@@ -154,6 +156,11 @@ export default function PolishModule() {
             />
             自动套用建议
           </label>
+          <KnowledgeBaseSelector
+            value={knowledgeBaseIds}
+            onChange={setKnowledgeBaseIds}
+            title="引用知识库"
+          />
           <Button onClick={handleCreate} disabled={loading} className="w-full">
             {loading ? "处理中..." : "开始润色"}
           </Button>
