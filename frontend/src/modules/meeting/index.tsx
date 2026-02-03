@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import KnowledgeBaseSelector from "@/components/knowledge/KnowledgeBaseSelector";
 import {
   FileAudio,
   Loader2,
@@ -41,6 +42,7 @@ export default function MeetingModule() {
     meetingTitle,
     generatedAt,
   } = useMeeting(meetingIdFromUrl);
+  const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -129,6 +131,14 @@ export default function MeetingModule() {
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="mt-6">
+            <KnowledgeBaseSelector
+              value={knowledgeBaseIds}
+              onChange={setKnowledgeBaseIds}
+              title="引用知识库"
+            />
           </div>
         </div>
       </div>

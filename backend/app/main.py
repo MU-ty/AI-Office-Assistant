@@ -27,7 +27,8 @@ from app.api import (
     ppt_projects,
     weekly_reports,
     stream,  # 新增: 流式处理服务
-    asr  # 新增: 语音识别服务
+    asr,  # 新增: 语音识别服务
+    weknora
 )
 
 logger = get_logger(__name__)
@@ -41,14 +42,18 @@ async def lifespan(app: FastAPI):
     try:
         await init_db()
         logger.info("✅ 数据库初始化完成")
-        
-        # 自动初始化 WeKnora 模型配置
+    except Exception as e:
+        logger.error(f"❌ 数据库初始化失败: {e}")
+        raise
+    
+    # 自动初始化 WeKnora 模型配置（非关键，初始化失败不阻止应用启动）
+    try:
         from init_weknora import initialize_weknora
         await initialize_weknora()
         logger.info("✅ WeKnora 模型配置初始化完成")
     except Exception as e:
-        logger.error(f"❌ 数据库初始化失败: {e}")
-        raise
+        logger.warning(f"⚠️  WeKnora 模型配置初始化失败: {e}")
+        # 不 raise，让应用继续启动
     
     yield
     
@@ -221,6 +226,13 @@ app.include_router(
     weekly_reports.router,
     prefix="/api/v1/reports",
     tags=["Reports"]
+)
+
+# WeKnora 知识库接入
+app.include_router(
+    weknora.router,
+    prefix="/api/v1/weknora",
+    tags=["WeKnora"]
 )
 
 

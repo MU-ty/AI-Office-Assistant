@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import KnowledgeBaseSelector from "@/components/knowledge/KnowledgeBaseSelector";
 import { createPPTProject, exportPPT, generatePPTSlides, getPPTProject, importPPTProject, listPPTProjects } from "./api";
 import type { PPTProject, PPTSlide } from "./types";
 
@@ -37,6 +38,7 @@ export default function PPTModule() {
   const [slides, setSlides] = useState<PPTSlide[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
 
   const loadProjects = async () => {
     try {
@@ -189,6 +191,11 @@ export default function PPTModule() {
               placeholder="可选"
             />
           </div>
+          <KnowledgeBaseSelector
+            value={knowledgeBaseIds}
+            onChange={setKnowledgeBaseIds}
+            title="引用知识库"
+          />
           <div className="space-y-2">
             <label className="text-xs text-slate-500">导入文件</label>
             <input

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import KnowledgeBaseSelector from "@/components/knowledge/KnowledgeBaseSelector";
 import {
   createWeeklyReport,
   createWorkLog,
@@ -39,6 +40,7 @@ export default function WeeklyReportModule() {
   const [loadingReports, setLoadingReports] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
 
   const [logForm, setLogForm] = useState({
     work_type: "",
@@ -297,6 +299,12 @@ export default function WeeklyReportModule() {
               />
             </div>
           </div>
+
+          <KnowledgeBaseSelector
+            value={knowledgeBaseIds}
+            onChange={setKnowledgeBaseIds}
+            title="引用知识库"
+          />
 
           <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
             <h3 className="text-sm font-medium text-slate-700">新增工作记录</h3>
