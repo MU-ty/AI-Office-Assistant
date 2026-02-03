@@ -114,8 +114,8 @@ async def get_document_details(
     db: AsyncSession = Depends(get_db)
 ):
     """获取文档详情"""
-    from app.services.weknora_service import weknora_service
-    return await weknora_service.get_document(doc_id)
+    service = DocumentService(db)
+    return await service.get_document_details(doc_id)
 
 
 @router.put("/{doc_id}")
@@ -153,8 +153,8 @@ async def summarize_document(
     db: AsyncSession = Depends(get_db)
 ):
     """生成文档摘要"""
-    from app.services.weknora_service import weknora_service
-    return await weknora_service.summarize_document(doc_id)
+    service = DocumentService(db)
+    return await service.summarize_document(doc_id)
 
 
 @router.get("/{doc_id}/concepts")
@@ -163,8 +163,8 @@ async def get_document_concepts(
     db: AsyncSession = Depends(get_db)
 ):
     """获取文档关键概念"""
-    from app.services.weknora_service import weknora_service
-    return await weknora_service.get_document_concepts(doc_id)
+    service = DocumentService(db)
+    return await service.get_document_concepts(doc_id)
 
 
 @router.get("/{doc_id}/citations")
@@ -173,8 +173,8 @@ async def get_document_citations(
     db: AsyncSession = Depends(get_db)
 ):
     """获取文档引用关系"""
-    from app.services.weknora_service import weknora_service
-    return await weknora_service.get_document_citations(doc_id)
+    service = DocumentService(db)
+    return await service.get_document_citations(doc_id)
 
 
 @router.post("/search")

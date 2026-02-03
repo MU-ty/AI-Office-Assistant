@@ -10,6 +10,7 @@ import os
 
 from app.utils.logger import get_logger
 from app.services.weknora_service import weknora_service
+from app.services.llm_service import llm_service
 from app.core.config import settings
 
 logger = get_logger(__name__)
@@ -60,3 +61,37 @@ class DocumentService:
         logger.info(f"使用 WeKnora 搜索相似文献: {query}")
         results = await self.weknora.search_knowledge(query, knowledge_base_ids, top_k=limit)
         return results
+
+    async def get_document_details(self, doc_id: str) -> dict:
+        """获取文档详情"""
+        return await self.weknora.get_document(doc_id)
+
+    async def summarize_document(self, doc_id: str) -> dict:
+        """生成文档摘要"""
+        logger.info(f"开始为文档生成摘要: {doc_id}")
+        content = await self.weknora.get_document_full_content(doc_id)
+        if not content:
+            return {"success": False, "message": "未找到文档内容或文档尚未解析完成"}
+        
+        summary = await llm_service.generate_document_summary(content)
+        return {"success": True, "data": {"summary": summary}}
+
+    async def get_document_concepts(self, doc_id: str) -> dict:
+        """获取文档关键概念"""
+        logger.info(f"开始提取文档关键概念: {doc_id}")
+        content = await self.weknora.get_document_full_content(doc_id)
+        if not content:
+            return {"success": False, "message": "未找到文档内容"}
+        
+        concepts = await llm_service.extract_document_concepts(content)
+        return {"success": True, "data": concepts}
+
+    async def get_document_citations(self, doc_id: str) -> dict:
+        """获取文档引用关系"""
+        logger.info(f"开始提取文档引用关系: {doc_id}")
+        content = await self.weknora.get_document_full_content(doc_id)
+        if not content:
+            return {"success": False, "message": "未找到文档内容"}
+        
+        citations = await llm_service.extract_document_citations(content)
+        return {"success": True, "data": citations}

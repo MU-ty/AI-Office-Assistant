@@ -16,9 +16,8 @@ class WeKnoraService:
         self.base_url = settings.WEKNORA_BASE_URL
         self.api_key = settings.WEKNORA_API_KEY
         self.headers = {
-            "Authorization": f"Bearer {self.api_key}" if self.api_key else "",
             "Content-Type": "application/json",
-            "x-api-key": self.api_key # WeKnora README mentions x-api-key
+            "x-api-key": self.api_key if self.api_key else ""
         }
 
     async def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
@@ -71,6 +70,48 @@ class WeKnoraService:
     async def get_document(self, doc_id: str) -> Dict[str, Any]:
         """获取文档详情"""
         return await self._request("GET", f"/knowledge/{doc_id}")
+
+    async def get_document_chunks(self, doc_id: str, page: int = 1, page_size: int = 50) -> Dict[str, Any]:
+        """获取文档的所有切片"""
+        return await self._request("GET", f"/chunks/{doc_id}", params={"page": page, "page_size": page_size})
+
+    async def get_document_full_content(self, doc_id: str, max_chunks: int = 100) -> str:
+        """获取文档的全文本内容（通过合并切片）"""
+        import asyncio
+        max_retries = 2
+        retry_delay = 2  # 秒
+
+        for attempt in range(max_retries + 1):
+            try:
+                logger.info(f"正在获取文档全文本 (尝试 {attempt + 1}): {doc_id}")
+                chunks_data = await self.get_document_chunks(doc_id, page_size=max_chunks)
+                
+                chunks = chunks_data.get("data", [])
+                if chunks:
+                    logger.info(f"成功获取到 {len(chunks)} 个分块")
+                    content_list = []
+                    for c in chunks:
+                        text = c.get("content", "").strip()
+                        if text:
+                            content_list.append(text)
+                    
+                    full_text = "\n".join(content_list)
+                    if full_text:
+                        return full_text
+                
+                if attempt < max_retries:
+                    logger.warning(f"文档 {doc_id} 的分块数据为空，将在 {retry_delay}s 后重试...")
+                    await asyncio.sleep(retry_delay)
+                else:
+                    logger.error(f"在 {max_retries + 1} 次尝试后仍未获取到文档 {doc_id} 的内容")
+                    
+            except Exception as e:
+                logger.error(f"获取文档全文本失败 (尝试 {attempt + 1}): {str(e)}")
+                if attempt >= max_retries:
+                    break
+                await asyncio.sleep(retry_delay)
+        
+        return ""
 
     async def delete_document(self, doc_id: str) -> Dict[str, Any]:
         """删除文档"""

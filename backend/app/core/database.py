@@ -40,12 +40,16 @@ if settings.DB_TYPE == "sqlite":
     logger.info(f"使用 SQLite 数据库: {settings.SQLITE_DB_PATH}")
 else:
     # PostgreSQL 专用配置
-    engine_kwargs.update({
-        "pool_size": settings.DB_POOL_SIZE,
-        "max_overflow": settings.DB_MAX_OVERFLOW,
-        "pool_pre_ping": True,
-        "poolclass": NullPool if settings.DEBUG else None,
-    })
+    if settings.DEBUG:
+        engine_kwargs.update({
+            "poolclass": NullPool,
+        })
+    else:
+        engine_kwargs.update({
+            "pool_size": settings.DB_POOL_SIZE,
+            "max_overflow": settings.DB_MAX_OVERFLOW,
+            "pool_pre_ping": True,
+        })
     logger.info(f"使用 PostgreSQL 数据库: {settings.DATABASE_URL}")
 
 engine = create_async_engine(

@@ -25,6 +25,7 @@ class LLMService:
             logger.warning("QWEN_API_KEY 未配置，LLM 服务将不可用")
             return
 
+        logger.info(f"Initializing LLM Client with API Key (prefix): {self.api_key[:8]}...")
         try:
             from openai import OpenAI
             self.client = OpenAI(
@@ -137,6 +138,85 @@ class LLMService:
             if key not in result:
                 result[key] = default[key]
         return result
+
+    async def generate_document_summary(self, content: str) -> str:
+        """生成文档摘要"""
+        if not self.check_availability():
+            return "无法生成摘要（LLM服务未配置）"
+        
+        system_prompt = "你是一个专业的文档分析助手。请为用户提供的文档内容生成一份简洁、准确的摘要，字数控制在300字以内。"
+        user_prompt = f"请分析以下文档内容并生成摘要：\n\n{content[:20000]}" # 限制输入长度
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.3
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.error(f"生成摘要失败: {e}")
+            return f"生成摘要失败: {str(e)}"
+
+    async def extract_document_concepts(self, content: str) -> List[Dict[str, str]]:
+        """提取文档关键概念"""
+        if not self.check_availability():
+            return []
+        
+        system_prompt = """你是一个专业的知识提取助手。请从文档中提取最核心的5-8个关键概念。
+请以 JSON 数组格式返回，每个元素包含 'name' (概念名称) 和 'description' (在该文档背景下的简要定义)。
+格式示例：[{"name": "概念A", "description": "定义..."}]
+"""
+        user_prompt = f"请从以下内容中提取关键概念：\n\n{content[:20000]}"
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+            content_res = response.choices[0].message.content.strip()
+            # 清理可能的 Markdown 标记
+            content_res = content_res.replace("```json", "").replace("```", "").strip()
+            return json.loads(content_res)
+        except Exception as e:
+            logger.error(f"提取概念失败: {e}")
+            return []
+
+    async def extract_document_citations(self, content: str) -> List[Dict[str, str]]:
+        """提取文档中的引用/参考文献"""
+        if not self.check_availability():
+            return []
+        
+        system_prompt = """你是一个专业的学术文档助手。请从文档中识别并提取所有的参考文献、引用或提及的其他外部文档。
+请以 JSON 数组格式返回，每个元素包含 'title' (标题) 和 'source' (来源/作者/年份等信息)。
+如果文档中没有明确的引用，请返回空数组 []。
+"""
+        user_prompt = f"请从以下内容中提取引用信息：\n\n{content[:20000]}"
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+            content_res = response.choices[0].message.content.strip()
+            content_res = content_res.replace("```json", "").replace("```", "").strip()
+            return json.loads(content_res)
+        except Exception as e:
+            logger.error(f"提取引用失败: {e}")
+            return []
 
 # 全局实例git 
 llm_service = LLMService()
