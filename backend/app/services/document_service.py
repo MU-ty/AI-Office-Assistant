@@ -44,9 +44,16 @@ class DocumentService:
                     return kb.get("id")
             
             # 没找到，创建一个
+            # 必须指定 Embedding 模型，否则无法进行 RAG 问答
+            # 同时绑定 LLM 模型用于后续的摘要和问答优化
+            embedding_model_id = await self.weknora.get_embedding_model_id("text-embedding-v3")
+            chat_model_id = await self.weknora.get_model_id_by_type("Chat")
+            
             new_kb = await self.weknora.create_knowledge_base(
                 name=f"User_{user_id}_Default", 
-                description=f"Default knowledge base for user {user_id}"
+                description=f"Default knowledge base for user {user_id}",
+                embedding_model_id=embedding_model_id,
+                summary_model_id=chat_model_id
             )
             return new_kb.get("data", {}).get("id")
         except Exception as e:
@@ -55,9 +62,9 @@ class DocumentService:
 
     async def create_document(self, title: str, file: UploadFile, user_id: int, kb_id: Optional[str] = None) -> dict:
         """
-        创建文档
+        创建文档 (第一阶段：保存文件并创建记录)
         """
-        logger.info(f"创建文档: {title}")
+        logger.info(f"开始创建文档任务: {title}")
 
         filename = file.filename or "document"
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -75,41 +82,28 @@ class DocumentService:
         with open(save_path, "wb") as f:
             f.write(content)
 
-        parsed_text = self._parse_file(save_path, ext)
-        if not parsed_text.strip():
-            raise ValueError("未解析到有效文本")
-
-        doc_title = title or os.path.splitext(filename)[0]
+        # 初始化文档记录
         meta_info = {
             "filename": filename,
             "size": len(content),
             "ext": ext,
         }
 
-        # --- 同步到 WeKnora ---
-        # 如果未提供 kb_id，则使用默认知识库
+        # 预先获取或创建默认知识库 ID
         weknora_kb_id = kb_id or await self._get_or_create_default_kb(user_id)
-        weknora_doc_id = None
-        if weknora_kb_id:
-            try:
-                # 重新打开文件进行上传
-                weknora_result = await self.weknora.upload_document_file(weknora_kb_id, save_path)
-                weknora_doc_id = weknora_result.get("data", {}).get("id")
-                logger.info(f"文档同步到 WeKnora 成功: {weknora_doc_id} (KB: {weknora_kb_id})")
-            except Exception as e:
-                logger.error(f"同步文档到 WeKnora 失败: {e}")
 
         doc = Document(
             user_id=user_id,
-            title=doc_title,
-            content=parsed_text,
+            title=title or os.path.splitext(filename)[0],
+            content="",  # 暂时为空，异步处理时填充
             document_type="source",
             source_type="file",
             source_url=None,
             file_path=save_path,
             meta_info=json.dumps(meta_info, ensure_ascii=False),
-            weknora_knowledge_id=weknora_doc_id,
-            weknora_kb_id=weknora_kb_id
+            weknora_kb_id=weknora_kb_id,
+            status="pending",
+            processing_progress=0
         )
         self.db.add(doc)
         await self.db.commit()
@@ -117,81 +111,79 @@ class DocumentService:
 
         return self._format_document(doc)
 
-    async def create_document_from_text(self, title: str, content: str, user_id: int, kb_id: Optional[str] = None) -> dict:
-        """从文本创建文档"""
-        if not content or not content.strip():
-            raise ValueError("文本不能为空")
-
-        # --- 同步到 WeKnora ---
-        weknora_kb_id = kb_id or await self._get_or_create_default_kb(user_id)
-        weknora_doc_id = None
-        doc_title = title or "文本输入"
-        if weknora_kb_id:
+    async def process_document_background(self, doc_id: int):
+        """
+        后台处理文档 (解析 + 同步到 WeKnora)
+        """
+        logger.info(f"开始后台处理文档: {doc_id}")
+        
+        # 获取最新的 session 进行操作
+        async with self.db as session:
             try:
-                weknora_result = await self.weknora.upload_document_text(weknora_kb_id, doc_title, content)
-                weknora_doc_id = weknora_result.get("data", {}).get("id")
+                # 重新查询文档
+                query = select(Document).where(Document.id == doc_id)
+                result = await session.execute(query)
+                doc = result.scalars().first()
+                
+                if not doc:
+                    logger.error(f"文档 {doc_id} 不存在，停止处理")
+                    return
+
+                # 更新状态：处理中
+                doc.status = "processing"
+                doc.processing_progress = 10
+                await session.commit()
+
+                # 1. 解析文件内容
+                parsed_text = ""
+                try:
+                    ext = json.loads(doc.meta_info).get("ext", "")
+                    parsed_text = self._parse_file(doc.file_path, ext)
+                    if not parsed_text.strip():
+                        raise ValueError("未解析到有效文本")
+                    
+                    doc.content = parsed_text
+                    doc.processing_progress = 40
+                    await session.commit()
+                except Exception as e:
+                    logger.error(f"解析文档失败: {e}")
+                    doc.status = "failed"
+                    doc.error_message = f"解析失败: {str(e)}"
+                    await session.commit()
+                    return
+
+                # 2. 同步到 WeKnora
+                if doc.weknora_kb_id:
+                    try:
+                        weknora_result = await self.weknora.upload_document_file(doc.weknora_kb_id, doc.file_path)
+                        weknora_doc_id = weknora_result.get("data", {}).get("id")
+                        
+                        doc.weknora_knowledge_id = weknora_doc_id
+                        doc.processing_progress = 80
+                        logger.info(f"文档同步到 WeKnora 成功: {weknora_doc_id}")
+                    except Exception as e:
+                        logger.error(f"同步文档到 WeKnora 失败: {str(e)}")
+                        if hasattr(e, "response") and hasattr(e.response, "text"):
+                            logger.error(f"WeKnora 错误详情: {e.response.text}")
+                        
+                        # 同步失败暂不标记为整个任务失败，但记录错误
+                        doc.error_message = f"WeKnora同步失败: {str(e)}"
+                
+                # 完成
+                doc.status = "completed"
+                doc.processing_progress = 100
+                await session.commit()
+                logger.info(f"文档 {doc_id} 处理完成")
+
             except Exception as e:
-                logger.error(f"文本同步到 WeKnora 失败: {e}")
-
-        doc = Document(
-            user_id=user_id,
-            title=doc_title,
-            content=content.strip(),
-            document_type="source",
-            source_type="text",
-            source_url=None,
-            file_path=None,
-            meta_info=None,
-            weknora_knowledge_id=weknora_doc_id,
-            weknora_kb_id=weknora_kb_id
-        )
-        self.db.add(doc)
-        await self.db.commit()
-        await self.db.refresh(doc)
-        return self._format_document(doc)
-
-    async def create_document_from_url(self, title: str, url: str, user_id: int, kb_id: Optional[str] = None) -> dict:
-        """从URL导入文档"""
-        if not url or not url.strip():
-            raise ValueError("URL不能为空")
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=20) as resp:
-                if resp.status >= 400:
-                    raise ValueError("URL内容获取失败")
-                html = await resp.text()
-
-        text = self._strip_html(html)
-        if not text.strip():
-            raise ValueError("未解析到有效文本")
-
-        # --- 同步到 WeKnora ---
-        weknora_kb_id = kb_id or await self._get_or_create_default_kb(user_id)
-        weknora_doc_id = None
-        doc_title = title or "网页导入"
-        if weknora_kb_id:
-            try:
-                weknora_result = await self.weknora.upload_document_text(weknora_kb_id, doc_title, text)
-                weknora_doc_id = weknora_result.get("data", {}).get("id")
-            except Exception as e:
-                logger.error(f"URL同步到 WeKnora 失败: {e}")
-
-        doc = Document(
-            user_id=user_id,
-            title=doc_title,
-            content=text.strip(),
-            document_type="source",
-            source_type="url",
-            source_url=url,
-            file_path=None,
-            meta_info=None,
-            weknora_knowledge_id=weknora_doc_id,
-            weknora_kb_id=weknora_kb_id
-        )
-        self.db.add(doc)
-        await self.db.commit()
-        await self.db.refresh(doc)
-        return self._format_document(doc)
+                logger.error(f"后台处理文档异常: {e}")
+                # 尝试更新错误状态
+                try:
+                    doc.status = "failed"
+                    doc.error_message = f"系统错误: {str(e)}"
+                    await session.commit()
+                except:
+                    pass
 
     async def list_documents(self, skip: int, limit: int, category: Optional[str], user_id: int) -> List[dict]:
         """获取文档列表"""
@@ -415,6 +407,9 @@ class DocumentService:
             "file_path": doc.file_path,
             "weknora_knowledge_id": doc.weknora_knowledge_id,
             "weknora_kb_id": doc.weknora_kb_id,
+            "status": doc.status,
+            "processing_progress": doc.processing_progress,
+            "error_message": doc.error_message,
             "created_at": doc.created_at,
             "updated_at": doc.updated_at,
         }

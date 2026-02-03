@@ -17,7 +17,6 @@ class WeKnoraService:
         self.base_url = settings.WEKNORA_BASE_URL.rstrip("/")
         self.api_key = settings.WEKNORA_API_KEY
         self.headers = {
-            "Content-Type": "application/json",
             "x-api-key": self.api_key if self.api_key else ""
         }
         self.timeout = 60.0
@@ -107,22 +106,14 @@ class WeKnoraService:
         if description: payload["description"] = description
         return await self._request("PUT", f"/knowledge/{doc_id}", json=payload)
 
-    async def create_knowledge_base(self, name: str, description: str = "", embedding_model_id: str = None) -> Dict[str, Any]:
-        """在 WeKnora 中创建新的知识库"""
-        payload = {
-            "name": name,
-            "description": description,
-            "embedding_model_id": embedding_model_id
-        }
-        return await self._request("POST", "/knowledge-bases", json=payload)
-
     async def upload_document_file(self, knowledge_base_id: str, file_path: str) -> Dict[str, Any]:
         """上传并解析文档到知识库"""
         url = f"{self.base_url}/knowledge-bases/{knowledge_base_id}/knowledge/file"
+        
         async with httpx.AsyncClient(timeout=120.0) as client:
             with open(file_path, "rb") as f:
                 files = {"file": f}
-                response = await client.post(url, headers={"x-api-key": self.api_key}, files=files)
+                response = await client.post(url, headers=self.headers, files=files)
                 response.raise_for_status()
                 return response.json()
 
@@ -134,20 +125,46 @@ class WeKnoraService:
         }
         return await self._request("POST", f"/knowledge-bases/{knowledge_base_id}/knowledge/manual", json=payload)
 
-    async def knowledge_search(self, query: str, knowledge_base_ids: List[str], top_k: int = 5) -> List[Dict[str, Any]]:
-        """在指定知识库中进行语义检索"""
-        payload = {
-            "query": query,
-            "knowledge_base_ids": knowledge_base_ids,
-            "top_k": top_k
-        }
-        response = await self._request("POST", "/knowledge-search", json=payload)
-        return response.get("data", [])
-
     async def list_models(self) -> List[Dict[str, Any]]:
         """获取 WeKnora 中的模型列表"""
         response = await self._request("GET", "/models")
         return response.get("data", [])
+
+    async def get_model_id_by_type(self, model_type: str, preferred_name: str = None) -> Optional[str]:
+        """根据类型和名称获取模型 ID
+        
+        Args:
+            model_type: 模型类型 (Embedding, Chat, Rerank)
+            preferred_name: 首选模型名称 (如 text-embedding-v3, qwen-max 等)
+        """
+        try:
+            models = await self.list_models()
+            filtered_models = [m for m in models if m.get("type") == model_type]
+            
+            if not filtered_models:
+                logger.warning(f"WeKnora 中未找到类型为 {model_type} 的模型")
+                return None
+            
+            # 1. 尝试完全匹配名称
+            if preferred_name:
+                for m in filtered_models:
+                    if m.get("name") == preferred_name:
+                        return m.get("id")
+                
+                # 2. 尝试模糊匹配名称
+                for m in filtered_models:
+                    if preferred_name.lower() in m.get("name", "").lower():
+                        return m.get("id")
+            
+            # 3. 返回该类型的第一个可用模型
+            return filtered_models[0].get("id")
+        except Exception as e:
+            logger.error(f"获取模型 ID 失败 (type={model_type}): {e}")
+        return None
+
+    async def get_embedding_model_id(self, model_name: str = "text-embedding-v3") -> Optional[str]:
+        """根据名称获取 Embedding 模型 ID"""
+        return await self.get_model_id_by_type("Embedding", model_name)
 
     # --- 知识库管理 ---
 
@@ -159,15 +176,16 @@ class WeKnoraService:
         """获取知识库详情"""
         return await self._request("GET", f"/knowledge-bases/{kb_id}")
 
-    async def create_knowledge_base(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """创建知识库"""
-        # 支持传入字典或解包参数
+    async def create_knowledge_base(self, data: Any, description: str = "", embedding_model_id: str = None) -> Dict[str, Any]:
+        """创建知识库 (支持字典参数或位置参数)"""
         if isinstance(data, dict):
             payload = data
         else:
-            # 兼容旧代码调用
-            payload = {"name": data}
-            
+            payload = {
+                "name": data,
+                "description": description,
+                "embedding_model_id": embedding_model_id
+            }
         return await self._request("POST", "/knowledge-bases", json=payload)
 
     async def update_knowledge_base(self, kb_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -180,16 +198,17 @@ class WeKnoraService:
 
     # --- 知识内容管理 ---
 
-    async def list_knowledge(self, kb_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def list_knowledge(self, kb_id: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
         """获取知识列表"""
         return await self._request("GET", f"/knowledge-bases/{kb_id}/knowledge", params=params)
 
-    async def upload_knowledge_file(self, kb_id: str, file_name: str, file_bytes: bytes, content_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def upload_knowledge_file(self, kb_id: str, file_name: str, file_bytes: bytes, content_type: str, data: Dict[str, Any] = None) -> Dict[str, Any]:
         """上传文件到知识库"""
         url = f"{self.base_url}/knowledge-bases/{kb_id}/knowledge/file"
+        
         async with httpx.AsyncClient(timeout=120.0) as client:
             files = {"file": (file_name, file_bytes, content_type)}
-            response = await client.post(url, headers={"x-api-key": self.api_key}, files=files, data=data)
+            response = await client.post(url, headers=self.headers, files=files, data=data)
             response.raise_for_status()
             return response.json()
 
@@ -207,13 +226,19 @@ class WeKnoraService:
 
     # --- 检索与问答 ---
 
-    async def knowledge_search(self, data: Any, knowledge_base_ids: List[str] = None, top_k: int = 5) -> Any:
+    async def knowledge_search(self, data: Any, knowledge_base_ids: List[str] = None, top_k: int = 5) -> List[Dict[str, Any]]:
         """知识库搜索"""
-        # 兼容旧代码调用: knowledge_search(query, kb_ids, top_k)
-        if not isinstance(data, dict):
-            return await self._old_knowledge_search(data, knowledge_base_ids, top_k)
-            
-        return await self._request("POST", "/knowledge-search", json=data)
+        if isinstance(data, dict):
+            payload = data
+        else:
+            payload = {
+                "query": data,
+                "knowledge_base_ids": knowledge_base_ids,
+                "top_k": top_k
+            }
+        
+        response = await self._request("POST", "/knowledge-search", json=payload)
+        return response.get("data", [])
 
     async def knowledge_chat_stream(self, session_id: str, data: Dict[str, Any]) -> AsyncGenerator[bytes, None]:
         """知识库问答流"""
@@ -224,16 +249,6 @@ class WeKnoraService:
         """Agent 问答流"""
         async for chunk in self.stream_request("POST", f"/agent-chat/{session_id}", json=data):
             yield chunk
-
-    # 为了兼容旧代码的辅助方法
-    async def _old_knowledge_search(self, query: str, knowledge_base_ids: List[str], top_k: int = 5) -> List[Dict[str, Any]]:
-        payload = {
-            "query": query,
-            "knowledge_base_ids": knowledge_base_ids,
-            "top_k": top_k
-        }
-        response = await self._request("POST", "/knowledge-search", json=payload)
-        return response.get("data", [])
 
 
 weknora_service = WeKnoraService()

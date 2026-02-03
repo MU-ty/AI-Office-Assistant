@@ -109,6 +109,9 @@ async def _ensure_db_schema(conn):
                 ("meta_info", "TEXT"),
                 ("weknora_knowledge_id", "VARCHAR(100)"),
                 ("weknora_kb_id", "VARCHAR(100)"),
+                ("status", "VARCHAR(20)"),
+                ("error_message", "TEXT"),
+                ("processing_progress", "INTEGER"),
             ],
             "ppt_projects": [
                 ("user_id", "INTEGER"),

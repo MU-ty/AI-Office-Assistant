@@ -13,7 +13,7 @@ Endpoints:
   POST   /api/v1/documents/search             - 相似文献搜索
 """
 
-from fastapi import APIRouter, Depends, status, UploadFile, File, HTTPException, Form
+from fastapi import APIRouter, Depends, status, UploadFile, File, HTTPException, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from pydantic import BaseModel
@@ -22,10 +22,7 @@ from app.core.database import get_db
 from app.core.auth import get_current_user_id
 from app.services.document_service import DocumentService
 from app.schemas.document import (
-    DocumentCreateText,
-    DocumentCreateUrl,
     DocumentUpdate,
-    DocumentSummaryRequest,
     DocumentSearchRequest,
 )
 from app.utils.logger import get_logger
@@ -49,12 +46,15 @@ class AskRequest(BaseModel):
 class KBCreateRequest(BaseModel):
     name: str
     description: Optional[str] = ""
+    embedding_model_id: Optional[str] = None
 
 
-class DocUpdateRequest(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    category: Optional[str] = None
+class KBCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    embedding_model_id: Optional[str] = None
+    summary_model_id: Optional[str] = None
+    rerank_model_id: Optional[str] = None
 
 
 @router.post("/knowledge-bases", status_code=status.HTTP_201_CREATED)
@@ -63,26 +63,44 @@ async def create_knowledge_base(
 ):
     """在 WeKnora 中创建新的知识库"""
     from app.services.weknora_service import weknora_service
+    
+    # 模型 ID 自动化处理
+    embedding_model_id = request.embedding_model_id
+    if not embedding_model_id:
+        embedding_model_id = await weknora_service.get_embedding_model_id("text-embedding-v3")
+    
+    summary_model_id = request.summary_model_id
+    if not summary_model_id:
+        summary_model_id = await weknora_service.get_model_id_by_type("Chat")
+    
+    rerank_model_id = request.rerank_model_id
+    if not rerank_model_id:
+        rerank_model_id = await weknora_service.get_model_id_by_type("Rerank")
+
     return await weknora_service.create_knowledge_base({
         "name": request.name,
-        "description": request.description
+        "description": request.description,
+        "embedding_model_id": embedding_model_id,
+        "summary_model_id": summary_model_id,
+        "rerank_model_id": rerank_model_id
     })
 
 
 @router.post("/ask")
 async def ask_with_rag(
     request: AskRequest,
+    db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
     """基于知识库回答问题 (RAG)"""
     from app.services.rag_service import rag_service
+    from app.services.document_service import DocumentService
     
-    # 如果没有提供知识库ID，尝试获取用户的默认知识库
     kb_ids = request.knowledge_base_ids
     if not kb_ids:
-        from app.services.document_service import DocumentService
-        # 这里只是一个占位逻辑，实际可以从 db 中获取
-        kb_ids = [f"User_{current_user_id}_Default"]
+        service = DocumentService(db)
+        default_kb_id = await service._get_or_create_default_kb(current_user_id)
+        kb_ids = [default_kb_id] if default_kb_id else []
 
     return await rag_service.answer_with_knowledge(
         request.query, 
@@ -93,17 +111,23 @@ async def ask_with_rag(
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def upload_document(
+    background_tasks: BackgroundTasks,
     title: str = Form(...),
     file: UploadFile = File(...),
     kb_id: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
-    """上传新文档 (支持 PDF, TXT, DOCX, MD)"""
+    """上传新文档 (异步处理：支持 PDF, TXT, DOCX, MD)"""
     try:
         service = DocumentService(db)
+        # 1. 第一阶段：保存文件并创建记录
         result = await service.create_document(title, file, current_user_id, kb_id)
-        return {"code": 200, "message": "上传成功", "data": result}
+        
+        # 2. 第二阶段：触发后台处理任务
+        background_tasks.add_task(service.process_document_background, result["id"])
+        
+        return {"code": 200, "message": "文件已上传，正在后台处理", "data": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -111,40 +135,30 @@ async def upload_document(
         raise HTTPException(status_code=500, detail="上传失败")
 
 
-@router.post("/text", status_code=status.HTTP_201_CREATED)
-async def upload_document_text(
-    request: DocumentCreateText,
+@router.get("/{doc_id}/status")
+async def get_document_status(
+    doc_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
-    """文本上传"""
+    """查询文档处理状态"""
     try:
         service = DocumentService(db)
-        result = await service.create_document_from_text(request.title, request.content, current_user_id, request.kb_id)
-        return {"code": 200, "message": "上传成功", "data": result}
+        doc = await service.get_document(doc_id, current_user_id)
+        return {
+            "code": 200, 
+            "data": {
+                "id": doc["id"],
+                "status": doc.get("status"),
+                "progress": doc.get("processing_progress"),
+                "error": doc.get("error_message")
+            }
+        }
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"文本上传失败: {e}")
-        raise HTTPException(status_code=500, detail="上传失败")
-
-
-@router.post("/url", status_code=status.HTTP_201_CREATED)
-async def upload_document_url(
-    request: DocumentCreateUrl,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id)
-):
-    """URL导入"""
-    try:
-        service = DocumentService(db)
-        result = await service.create_document_from_url(request.title, request.url, current_user_id, request.kb_id)
-        return {"code": 200, "message": "导入成功", "data": result}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"URL导入失败: {e}")
-        raise HTTPException(status_code=500, detail="导入失败")
+        logger.error(f"获取文档状态失败: {e}")
+        raise HTTPException(status_code=500, detail="获取失败")
 
 
 @router.get("/")
