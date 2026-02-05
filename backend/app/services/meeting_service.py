@@ -6,16 +6,15 @@
 import json
 from typing import List, Optional, Dict, AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_
 from fastapi import UploadFile, HTTPException
 from datetime import datetime
 
 from app.utils.logger import get_logger
+from app.models.meeting import Meeting, MeetingMinute
 from app.services.meeting_minutes_service import MeetingMinutesService
 from app.services.stream_service import StreamService, StreamProvider
 from app.core.config import settings
-
-# 简易的内存存储，便于跑通流程。生产环境请替换为数据库持久化。
-MEETING_STORE: Dict[str, dict] = {}
 
 logger = get_logger(__name__)
 
@@ -33,24 +32,32 @@ class MeetingService:
         
         Args:
             meeting_data: 包含title, meeting_type, start_time等信息
+            user_id: 用户ID
             
         Returns:
             创建的会议信息
         """
         try:
-            logger.info(f"创建会议: {meeting_data.get('title')}")
-            meeting_id = meeting_data.get("id") or f"meeting_{int(datetime.now().timestamp())}"
-            meeting = {
-                "id": meeting_id,
-                "status": "created",
-                "user_id": user_id,
-                **meeting_data,
-            }
-            MEETING_STORE[meeting_id] = meeting
-            return meeting
+            logger.info(f"创建会议: {meeting_data.get('title')}, user_id={user_id}")
+            
+            meeting = Meeting(
+                user_id=user_id,
+                title=meeting_data.get("title") or "未命名会议",
+                description=meeting_data.get("description"),
+                date=meeting_data.get("date") or datetime.now().isoformat(),
+                status="created",
+                transcription=meeting_data.get("transcription")
+            )
+            self.db.add(meeting)
+            await self.db.commit()
+            await self.db.refresh(meeting)
+            
+            logger.info(f"会议创建成功: id={meeting.id}")
+            return self._format_meeting(meeting)
         except Exception as e:
+            await self.db.rollback()
             logger.error(f"创建会议失败: {e}")
-            return {"error": str(e)}
+            raise
     
     async def list_meetings(
         self, skip: int, limit: int, status: Optional[str], user_id: int
@@ -61,75 +68,135 @@ class MeetingService:
         Args:
             skip: 分页偏移
             limit: 分页大小
-            status: 过滤状态（created, transcribing, processing, completed）
+            status: 过滤状态（created, processing, completed）
+            user_id: 用户ID
             
         Returns:
             会议列表
         """
         try:
-            logger.info(f"查询会议列表: skip={skip}, limit={limit}, status={status}")
-            meetings = [m for m in MEETING_STORE.values() if m.get("user_id") == user_id]
+            logger.info(f"查询会议列表: skip={skip}, limit={limit}, status={status}, user_id={user_id}")
+            
+            query = select(Meeting).where(Meeting.user_id == user_id)
+            
             if status:
-                meetings = [m for m in meetings if m.get("status") == status]
-            return meetings[skip: skip + limit]
+                query = query.where(Meeting.status == status)
+            
+            query = query.order_by(Meeting.created_at.desc()).offset(skip).limit(limit)
+            
+            result = await self.db.execute(query)
+            meetings = result.scalars().all()
+            
+            return [self._format_meeting(m) for m in meetings]
         except Exception as e:
             logger.error(f"查询会议列表失败: {e}")
             return []
     
-    async def get_meeting(self, meeting_id: str, user_id: int) -> dict:
+    async def get_meeting(self, meeting_id: int, user_id: int) -> dict:
         """
         获取会议详情
         
         Args:
             meeting_id: 会议ID
+            user_id: 用户ID
             
         Returns:
             会议详情
         """
         try:
-            logger.info(f"获取会议详情: {meeting_id}")
-            return self._require_meeting_access(meeting_id, user_id)
+            logger.info(f"获取会议详情: meeting_id={meeting_id}, user_id={user_id}")
+            
+            query = select(Meeting).where(
+                and_(Meeting.id == meeting_id, Meeting.user_id == user_id)
+            )
+            result = await self.db.execute(query)
+            meeting = result.scalars().first()
+            
+            if not meeting:
+                raise ValueError("会议不存在或无权访问")
+            
+            return self._format_meeting(meeting)
         except Exception as e:
             logger.error(f"获取会议详情失败: {e}")
-            return {"error": str(e)}
+            raise
     
-    async def update_meeting(self, meeting_id: str, meeting_data: Dict, user_id: int) -> dict:
+    async def update_meeting(self, meeting_id: int, meeting_data: Dict, user_id: int) -> dict:
         """
         更新会议信息
         
         Args:
             meeting_id: 会议ID
             meeting_data: 更新的数据
+            user_id: 用户ID
             
         Returns:
             更新后的会议信息
         """
         try:
-            logger.info(f"更新会议: {meeting_id}")
-            meeting = self._require_meeting_access(meeting_id, user_id)
-            meeting.update(meeting_data)
-            return {"id": meeting_id, **meeting}
+            logger.info(f"更新会议: meeting_id={meeting_id}, user_id={user_id}")
+            
+            query = select(Meeting).where(
+                and_(Meeting.id == meeting_id, Meeting.user_id == user_id)
+            )
+            result = await self.db.execute(query)
+            meeting = result.scalars().first()
+            
+            if not meeting:
+                raise ValueError("会议不存在或无权访问")
+            
+            # 更新允许的字段
+            if "title" in meeting_data:
+                meeting.title = meeting_data["title"]
+            if "description" in meeting_data:
+                meeting.description = meeting_data["description"]
+            if "status" in meeting_data:
+                meeting.status = meeting_data["status"]
+            if "transcription" in meeting_data:
+                meeting.transcription = meeting_data["transcription"]
+            
+            meeting.updated_at = datetime.utcnow()
+            await self.db.commit()
+            await self.db.refresh(meeting)
+            
+            logger.info(f"会议更新成功: id={meeting.id}")
+            return self._format_meeting(meeting)
         except Exception as e:
+            await self.db.rollback()
             logger.error(f"更新会议失败: {e}")
-            return {"error": str(e)}
+            raise
     
-    async def delete_meeting(self, meeting_id: str, user_id: int) -> None:
+    async def delete_meeting(self, meeting_id: int, user_id: int) -> None:
         """
         删除会议
         
         Args:
             meeting_id: 会议ID
+            user_id: 用户ID
         """
         try:
-            logger.info(f"删除会议: {meeting_id}")
-            self._require_meeting_access(meeting_id, user_id)
-            MEETING_STORE.pop(meeting_id, None)
+            logger.info(f"删除会议: meeting_id={meeting_id}, user_id={user_id}")
+            
+            query = select(Meeting).where(
+                and_(Meeting.id == meeting_id, Meeting.user_id == user_id)
+            )
+            result = await self.db.execute(query)
+            meeting = result.scalars().first()
+            
+            if not meeting:
+                raise ValueError("会议不存在或无权访问")
+            
+            await self.db.delete(meeting)
+            await self.db.commit()
+            
+            logger.info(f"会议删除成功: id={meeting_id}")
         except Exception as e:
+            await self.db.rollback()
             logger.error(f"删除会议失败: {e}")
+            raise
     
-    # ============================================================
-    # 流程图第1-3步：上传和转录
-    # ============================================================
+    # 注意：以下方法需要重构，暂不可用
+    # 这些方法原本依赖于已弃用的MEETING_STORE内存存储
+    # TODO: 使用数据库重新实现流式生成、导出、邮件等功能
     
     async def upload_media(self, meeting_id: str, file: UploadFile, user_id: int) -> dict:
         """
@@ -506,10 +573,16 @@ class MeetingService:
             logger.error(f"获取Action Items失败: {e}")
             return []
 
-    def _require_meeting_access(self, meeting_id: str, user_id: int) -> dict:
-        meeting = MEETING_STORE.get(meeting_id)
-        if not meeting:
-            raise HTTPException(status_code=404, detail="会议不存在")
-        if meeting.get("user_id") != user_id:
-            raise HTTPException(status_code=403, detail="无权限访问该会议")
-        return meeting
+    def _format_meeting(self, meeting: Meeting) -> dict:
+        """格式化会议对象为字典"""
+        return {
+            "id": meeting.id,
+            "user_id": meeting.user_id,
+            "title": meeting.title,
+            "description": meeting.description,
+            "date": meeting.date,
+            "status": meeting.status,
+            "transcription": meeting.transcription,
+            "created_at": meeting.created_at.isoformat() if meeting.created_at else None,
+            "updated_at": meeting.updated_at.isoformat() if meeting.updated_at else None,
+        }

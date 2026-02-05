@@ -8,6 +8,7 @@ import json
 from datetime import datetime
 import os
 import uuid
+import asyncio
 import aiohttp
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, and_
@@ -41,9 +42,10 @@ class PolishService:
         流程：
         1. 验证输入
         2. 创建任务记录
-        3. 执行学术规范化分析
-        4. 保存问题到数据库
-        5. 返回任务结果
+        3. 调用Qwen LLM进行深度学术化改写
+        4. 执行学术规范化分析作为辅助检查
+        5. 保存问题到数据库
+        6. 返回任务结果
         """
         logger.info("创建学术润色任务")
         
@@ -68,8 +70,14 @@ class PolishService:
             self.db.add(task)
             await self.db.flush()  # 获取task ID
             
-            # 执行分析
-            analysis_result = self.normalization_service.analyze_text(original_text)
+            # 首先调用Qwen LLM进行深度学术化改写
+            logger.info(f"调用Qwen API进行学术化改写，任务ID: {task.id}")
+            polished_text = await self._polish_with_llm(original_text, polish_level)
+            task.polished_text = polished_text
+            
+            # 然后执行规则引擎分析作为辅助检查
+            logger.info("执行规则引擎分析")
+            analysis_result = self.normalization_service.analyze_text(polished_text)
             
             # 保存问题到数据库
             all_issues = []
@@ -109,7 +117,7 @@ class PolishService:
             # 如果启用自动修复，应用修复
             if auto_fix_enabled:
                 polished_text, fixed_count = self.normalization_service.apply_fixes(
-                    original_text,
+                    polished_text,
                     all_issues
                 )
                 task.polished_text = polished_text
@@ -119,7 +127,7 @@ class PolishService:
                 if task.total_issues > 0:
                     task.accuracy = fixed_count / task.total_issues
             else:
-                task.polished_text = original_text
+                task.polished_text = polished_text
                 task.fixed_issues = 0
                 task.accuracy = 0.0
             
@@ -460,6 +468,95 @@ class PolishService:
             return text[:start] + replacement + text[end:]
         except Exception:
             return text
+    
+    async def _polish_with_llm(self, original_text: str, polish_level: str = "standard") -> str:
+        """
+        使用Qwen LLM进行深度学术化改写
+        
+        Args:
+            original_text: 原始文本
+            polish_level: 润色级别 (light, standard, rigorous)
+            
+        Returns:
+            学术化改写后的文本
+        """
+        if not settings.QWEN_API_KEY:
+            logger.warning("Qwen API Key未配置，返回原文本")
+            return original_text
+        
+        # 根据润色级别调整要求
+        level_descriptions = {
+            "light": "轻度学术化改写：主要提升表达的专业性和准确性",
+            "standard": "中度学术化改写：同时提升学术规范性和表达严谨性",
+            "rigorous": "深度学术化改写：全面提升学术水平，使用更多专业术语和学术表达"
+        }
+        
+        level_desc = level_descriptions.get(polish_level, level_descriptions["standard"])
+        
+        prompt = (
+            "你是资深的学术论文编辑，请对以下文本进行学术化改写。\n\n"
+            "改写要求：\n"
+            f"1. {level_desc}\n"
+            "2. 转换为学术规范的表达方式：\n"
+            "   - 使用学术化的词汇和短语\n"
+            "   - 采用被动语态或名词化表达\n"
+            "   - 添加必要的过渡词和逻辑连接词\n"
+            "   - 优化句式结构使其更符合学术论文规范\n"
+            "3. 保持原意不变，增强学术严谨性\n"
+            "4. 改善时态和语态的一致性\n"
+            "5. 不要改变文本的结构，只改进表达\n"
+            "6. 不要添加任何额外的解释或注释\n\n"
+            f"原文本：\n{original_text}\n\n"
+            "请输出改写后的文本，确保明显高于原文的学术水平："
+        )
+        
+        api_url = settings.QWEN_BASE_URL.rstrip("/") + "/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.QWEN_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": settings.QWEN_MODEL_NAME,
+            "messages": [
+                {"role": "system", "content": "你是资深的学术论文编辑和写作顾问。"},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.3,
+            "top_p": 0.9,
+            "max_tokens": max(len(original_text) // 2 * 3, 500),  # 预留足够的token空间
+            "stream": False,
+        }
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(api_url, json=payload, headers=headers, timeout=60) as resp:
+                    if resp.status >= 400:
+                        error_text = await resp.text()
+                        logger.error(f"Qwen API错误: status={resp.status}, response={error_text}")
+                        logger.warning("Qwen API调用失败，返回原文本")
+                        return original_text
+                    
+                    data = await resp.json()
+            
+            content = (
+                data.get("choices", [{}])[0]
+                .get("message", {})
+                .get("content", "")
+            ).strip()
+            
+            if not content:
+                logger.warning("Qwen API返回空内容，返回原文本")
+                return original_text
+            
+            logger.info("Qwen API学术化改写成功")
+            return content
+            
+        except asyncio.TimeoutError:
+            logger.error("Qwen API请求超时")
+            return original_text
+        except Exception as e:
+            logger.error(f"调用Qwen API异常: {e}")
+            return original_text
 
 
 
@@ -1106,6 +1203,7 @@ class PPTService:
         theme_palette: Optional[dict]
     ) -> dict:
         """生成幻灯片"""
+        logger.info(f"开始生成PPT幻灯片: project_id={project_id}, tone={tone}")
         query = select(PPTProject).where(
             and_(PPTProject.id == project_id, PPTProject.user_id == user_id)
         )
@@ -1113,6 +1211,8 @@ class PPTService:
         project = result.scalars().first()
         if not project:
             raise ValueError("项目不存在")
+
+        logger.info(f"找到项目: title={project.title}, content_length={len(project.content or '')}")
 
         if theme:
             project.theme = theme
@@ -1123,8 +1223,12 @@ class PPTService:
                 else None
             )
 
+        logger.info("开始调用Qwen API生成大纲...")
         outline = await self._build_outline(project.title, project.content, tone)
+        logger.info(f"大纲生成成功，幻灯片数量: {len(outline.get('slides', []))}")
+        
         slides = self._outline_to_slides(outline)
+        logger.info(f"幻灯片转换完成，最终数量: {len(slides)}")
 
         project.outline_json = json.dumps(outline, ensure_ascii=False)
         project.slides_json = json.dumps(slides, ensure_ascii=False)
@@ -1132,6 +1236,7 @@ class PPTService:
         project.updated_at = datetime.utcnow()
         await self.db.commit()
         await self.db.refresh(project)
+        logger.info(f"PPT幻灯片生成完成: project_id={project_id}")
         return self._format_project(project, include_slides=True)
 
     async def get_slides(self, project_id: str, user_id: int) -> list:
@@ -1171,7 +1276,9 @@ class PPTService:
         return {"project_id": project.id, "format": "pptx", "path": file_url}
 
     async def _build_outline(self, title: str, content: str, tone: str) -> dict:
+        logger.info(f"_build_outline: QWEN_API_KEY={'已配置' if settings.QWEN_API_KEY else '未配置'}")
         if not settings.QWEN_API_KEY:
+            logger.warning("Qwen API Key未配置，使用fallback生成大纲")
             return self._fallback_outline(title, content)
 
         prompt = (
@@ -1184,6 +1291,8 @@ class PPTService:
         )
 
         api_url = settings.QWEN_BASE_URL.rstrip("/") + "/chat/completions"
+        logger.info(f"调用Qwen API: {api_url}")
+        
         headers = {
             "Authorization": f"Bearer {settings.QWEN_API_KEY}",
             "Content-Type": "application/json",
@@ -1200,19 +1309,39 @@ class PPTService:
             "stream": False,
         }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(api_url, json=payload, headers=headers, timeout=60) as resp:
-                if resp.status >= 400:
-                    raise ValueError("生成失败")
-                data = await resp.json()
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(api_url, json=payload, headers=headers, timeout=60) as resp:
+                    logger.info(f"Qwen API响应状态: {resp.status}")
+                    if resp.status >= 400:
+                        error_text = await resp.text()
+                        logger.error(f"Qwen API错误: status={resp.status}, response={error_text}")
+                        raise ValueError(f"生成失败: API返回{resp.status}")
+                    data = await resp.json()
+                    logger.info(f"Qwen API响应成功")
+        except aiohttp.ClientError as e:
+            logger.error(f"Qwen API请求异常: {e}")
+            logger.warning("使用fallback生成大纲")
+            return self._fallback_outline(title, content)
+        except Exception as e:
+            logger.error(f"调用Qwen API异常: {e}")
+            logger.warning("使用fallback生成大纲")
+            return self._fallback_outline(title, content)
+            
         content = (
             data.get("choices", [{}])[0]
             .get("message", {})
             .get("content", "")
         )
+        logger.info(f"Qwen返回内容长度: {len(content)}")
+        
         try:
-            return json.loads(content)
-        except Exception:
+            outline = json.loads(content)
+            logger.info("成功解析JSON大纲")
+            return outline
+        except Exception as e:
+            logger.error(f"JSON解析失败: {e}, content={content[:200]}")
+            logger.warning("使用fallback生成大纲")
             return self._fallback_outline(title, content)
 
     def _fallback_outline(self, title: str, content: str) -> dict:
@@ -1311,6 +1440,10 @@ class PPTService:
     def _safe_json(self, value: Optional[str], default):
         if not value:
             return default
+        try:
+            return json.loads(value)
+        except Exception:
+            return default
 
     def _apply_theme(self, slide, theme: Optional[str], theme_palette: Optional[str], RGBColor) -> None:
         theme_key = (theme or "classic").lower()
@@ -1351,10 +1484,6 @@ class PPTService:
         g = int(hex_value[2:4], 16)
         b = int(hex_value[4:6], 16)
         return RGBColor(r, g, b)
-        try:
-            return json.loads(value)
-        except Exception:
-            return default
 
 
 # ============================================================
@@ -1363,3 +1492,4 @@ class PPTService:
 
 # 为了保持向后兼容性，在此导入并代理实现
 from app.services.report_service import WeeklyReportService as ReportService
+

@@ -167,12 +167,13 @@ export default function PPTModule() {
 
   return (
     <div className="flex h-full w-full gap-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-      <div className="w-80 shrink-0 border-r border-slate-200 bg-slate-50">
+      <div className="w-80 shrink-0 border-r border-slate-200 bg-slate-50 flex flex-col overflow-hidden">
         <div className="border-b border-slate-200 bg-white p-6">
           <h2 className="text-lg font-semibold text-slate-800">PPT生成</h2>
           <p className="mt-1 text-xs text-slate-500">快速整理内容并生成演示提纲</p>
         </div>
-        <div className="p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-6 space-y-4">
           <div className="space-y-2">
             <label className="text-xs text-slate-500">标题</label>
             <input
@@ -319,8 +320,8 @@ export default function PPTModule() {
           >
             导出 PPTX
           </Button>
-        </div>
-        <div className="px-6 pb-6">
+          </div>
+          <div className="px-6 pb-6">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-slate-700">历史项目</h3>
             <Badge variant="secondary" className="text-xs">
@@ -350,6 +351,7 @@ export default function PPTModule() {
               ))}
             </div>
           </ScrollArea>
+          </div>
         </div>
       </div>
 

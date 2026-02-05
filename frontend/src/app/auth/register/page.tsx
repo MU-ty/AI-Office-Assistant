@@ -63,20 +63,20 @@ export default function RegisterPage() {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">邮箱</label>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700">姓名（可选）</label>
-                        <input
-                          name="full_name"
-                          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          placeholder="请输入姓名"
-                        />
-                      </div>
             <input
               required
               type="email"
               name="email"
               className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="name@example.com"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">姓名（可选）</label>
+            <input
+              name="full_name"
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="请输入姓名"
             />
           </div>
           <div className="space-y-2">

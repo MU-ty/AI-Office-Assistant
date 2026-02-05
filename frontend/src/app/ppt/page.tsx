@@ -1,5 +1,9 @@
 import PPTModule from "@/modules/ppt";
 
 export default function PPTPage() {
-  return <PPTModule />;
+  return (
+    <div className="h-screen">
+      <PPTModule />
+    </div>
+  );
 }

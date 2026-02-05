@@ -12,6 +12,7 @@ class Meeting(Base):
     __tablename__ = "meetings"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False, index=True)  # 关联用户
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     date = Column(String(50), nullable=False)
@@ -29,7 +30,8 @@ class MeetingMinute(Base):
     __tablename__ = "meeting_minutes"
     
     id = Column(Integer, primary_key=True, index=True)
-    meeting_id = Column(Integer, nullable=False)
+    user_id = Column(Integer, nullable=False, index=True)  # 关联用户
+    meeting_id = Column(Integer, nullable=False, index=True)
     content = Column(Text, nullable=False)
     format_type = Column(String(20), nullable=False)  # markdown, pdf, docx, json
     file_path = Column(String(500), nullable=True)
