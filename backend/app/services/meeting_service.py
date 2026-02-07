@@ -214,7 +214,7 @@ class MeetingService:
         Returns:
             上传和转录信息
         """
-        self._require_meeting_access(meeting_id, user_id)
+        await self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.upload_and_transcribe(meeting_id, file)
     
     async def start_transcription(self, meeting_id: str, user_id: int) -> dict:
@@ -229,7 +229,7 @@ class MeetingService:
         """
         try:
             logger.info(f"启动转录: {meeting_id}")
-            self._require_meeting_access(meeting_id, user_id)
+            await self._require_meeting_access(meeting_id, user_id)
             # TODO: 触发异步转录任务
             return {"meeting_id": meeting_id, "status": "transcribing"}
         except Exception as e:
@@ -268,7 +268,7 @@ class MeetingService:
         Returns:
             处理后的会议数据
         """
-        self._require_meeting_access(meeting_id, user_id)
+        await self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.process_transcription(
             meeting_id,
             transcription_text
@@ -295,7 +295,7 @@ class MeetingService:
             会议纪要
         """
         logger.info(f"获取会议纪要: {meeting_id}")
-        self._require_meeting_access(meeting_id, user_id)
+        await self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.get_minutes_by_meeting(meeting_id)
     
     async def generate_minutes(
@@ -318,7 +318,7 @@ class MeetingService:
         Returns:
             生成的纪要信息
         """
-        self._require_meeting_access(meeting_id, user_id)
+        await self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.generate_meeting_minutes(
             meeting_id,
             meeting_data,
@@ -338,7 +338,7 @@ class MeetingService:
         Returns:
             导出信息
         """
-        self._require_meeting_access(meeting_id, user_id)
+        await self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.export_minutes(meeting_id, format)
 
     # ============================================================
@@ -353,7 +353,7 @@ class MeetingService:
         由 /minutes/stream SSE 端点消费，并包装成 {status: streaming, chunk, content}。
         """
 
-        self._require_meeting_access(meeting_id, user_id)
+        # Access check is async; callers should validate before invoking this stream.
         transcription = (
             meeting_data.get("transcription_text")
             or meeting_data.get("transcription")
@@ -446,7 +446,7 @@ class MeetingService:
         Returns:
             发送状态
         """
-        self._require_meeting_access(meeting_id, user_id)
+        await self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.send_minutes_email(
             meeting_id,
             recipients,
@@ -471,7 +471,7 @@ class MeetingService:
         Returns:
             分享状态
         """
-        self._require_meeting_access(meeting_id, user_id)
+        await self._require_meeting_access(meeting_id, user_id)
         return await self.minutes_service.share_minutes(meeting_id, share_targets)
     
     # ============================================================
@@ -482,7 +482,7 @@ class MeetingService:
         """获取会议参与人列表"""
         try:
             logger.info(f"获取参与人: {meeting_id}")
-            self._require_meeting_access(meeting_id, user_id)
+            await self._require_meeting_access(meeting_id, user_id)
             # 获取原始结构化数据
             data = self.minutes_service.get_minutes_data(meeting_id)
             if not data:
@@ -500,7 +500,7 @@ class MeetingService:
         """获取会议议程"""
         try:
             logger.info(f"获取议程: {meeting_id}")
-            self._require_meeting_access(meeting_id, user_id)
+            await self._require_meeting_access(meeting_id, user_id)
             # 获取原始结构化数据
             data = self.minutes_service.get_minutes_data(meeting_id)
             if not data:
@@ -526,7 +526,7 @@ class MeetingService:
         """获取会议决议"""
         try:
             logger.info(f"获取决议: {meeting_id}")
-            self._require_meeting_access(meeting_id, user_id)
+            await self._require_meeting_access(meeting_id, user_id)
             # 获取原始结构化数据
             data = self.minutes_service.get_minutes_data(meeting_id)
             if not data:
@@ -543,7 +543,7 @@ class MeetingService:
         """获取Action Items"""
         try:
             logger.info(f"获取Action Items: {meeting_id}")
-            self._require_meeting_access(meeting_id, user_id)
+            await self._require_meeting_access(meeting_id, user_id)
             # 获取原始结构化数据
             data = self.minutes_service.get_minutes_data(meeting_id)
             if not data:
@@ -586,3 +586,24 @@ class MeetingService:
             "created_at": meeting.created_at.isoformat() if meeting.created_at else None,
             "updated_at": meeting.updated_at.isoformat() if meeting.updated_at else None,
         }
+
+    def _normalize_meeting_id(self, meeting_id: str | int) -> int:
+        if isinstance(meeting_id, int):
+            return meeting_id
+        if isinstance(meeting_id, str):
+            if meeting_id.isdigit():
+                return int(meeting_id)
+            if meeting_id.startswith("meeting_") and meeting_id[8:].isdigit():
+                return int(meeting_id[8:])
+        raise HTTPException(status_code=400, detail="无效的会议ID")
+
+    async def _require_meeting_access(self, meeting_id: str | int, user_id: int) -> Meeting:
+        normalized_id = self._normalize_meeting_id(meeting_id)
+        query = select(Meeting).where(
+            and_(Meeting.id == normalized_id, Meeting.user_id == user_id)
+        )
+        result = await self.db.execute(query)
+        meeting = result.scalars().first()
+        if not meeting:
+            raise HTTPException(status_code=404, detail="会议不存在或无权访问")
+        return meeting

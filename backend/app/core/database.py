@@ -101,6 +101,20 @@ async def _ensure_db_schema(conn):
     try:
         is_sqlite = settings.DB_TYPE == "sqlite"
         migrations = {
+            "meetings": [
+                ("user_id", "INTEGER"),
+                ("description", "TEXT"),
+                ("date", "VARCHAR(50)"),
+                ("status", "VARCHAR(20)"),
+                ("transcription", "TEXT"),
+                ("created_at", "DATETIME" if is_sqlite else "TIMESTAMP"),
+                ("updated_at", "DATETIME" if is_sqlite else "TIMESTAMP"),
+            ],
+            "meeting_minutes": [
+                ("user_id", "INTEGER"),
+                ("file_path", "VARCHAR(500)"),
+                ("created_at", "DATETIME" if is_sqlite else "TIMESTAMP"),
+            ],
             "documents": [
                 ("user_id", "INTEGER" if is_sqlite else "INTEGER"),
                 ("source_type", "VARCHAR(50)"),
