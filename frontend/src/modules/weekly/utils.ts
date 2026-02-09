@@ -109,7 +109,7 @@ export function getPlaceholderCount(text?: string | null) {
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    if (trimmed === "-" || trimmed === "-" || trimmed === "- " || trimmed === "1." || trimmed === "1." || trimmed === "1. " || trimmed.endsWith(":") || trimmed.endsWith("：")) {
+    if (trimmed === "-" || trimmed === "-" || trimmed === "- " || trimmed === "1." || trimmed === "1." || trimmed === "1. ") {
       count += 1;
     }
   }

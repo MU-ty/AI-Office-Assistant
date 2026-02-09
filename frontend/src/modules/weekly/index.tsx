@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -55,6 +55,12 @@ export default function WeeklyReportModule() {
   });
   const [selectedLogIds, setSelectedLogIds] = useState<number[]>([]);
   const [useAiPolish, setUseAiPolish] = useState(false);
+  const [aiPolishProgress, setAiPolishProgress] = useState({
+    active: false,
+    percent: 0,
+    stepIndex: 0
+  });
+  const aiPolishTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [reportDraft, setReportDraft] = useState({
     title: "",
@@ -73,8 +79,8 @@ export default function WeeklyReportModule() {
     setError(null);
     try {
       const data = await listWorkLogs({
-        date_from: weekStart,
-        date_to: weekEnd,
+        date_from: toIsoDateTime(weekStart),
+        date_to: toIsoDateTime(weekEnd, true),
         skip: 0,
         limit: 1000
       });
@@ -136,6 +142,14 @@ export default function WeeklyReportModule() {
   useEffect(() => {
     refreshReports();
   }, [refreshReports]);
+
+  useEffect(() => {
+    return () => {
+      if (aiPolishTimerRef.current) {
+        clearInterval(aiPolishTimerRef.current);
+      }
+    };
+  }, []);
 
   if (!isAuthed) {
     return (
@@ -257,12 +271,27 @@ export default function WeeklyReportModule() {
 
   const handleCreateReport = async () => {
     setError(null);
+    const shouldPolish = useAiPolish;
+    if (shouldPolish) {
+      if (aiPolishTimerRef.current) {
+        clearInterval(aiPolishTimerRef.current);
+      }
+      setAiPolishProgress({ active: true, percent: 10, stepIndex: 0 });
+      aiPolishTimerRef.current = setInterval(() => {
+        setAiPolishProgress((prev) => {
+          if (!prev.active) return prev;
+          const nextPercent = Math.min(prev.percent + 10, 90);
+          const nextStep = Math.min(Math.floor(nextPercent / 30), 2);
+          return { ...prev, percent: nextPercent, stepIndex: nextStep };
+        });
+      }, 800);
+    }
     try {
       const report = await createWeeklyReport({
         title: reportDraft.title || undefined,
         week_start_date: toIsoDateTime(weekStart),
         week_end_date: toIsoDateTime(weekEnd, true),
-        ai_polish: useAiPolish
+        ai_polish: shouldPolish
       });
       setSelectedReport(report);
       const summary = normalizeSummary(report.summary);
@@ -272,8 +301,25 @@ export default function WeeklyReportModule() {
         content: report.content || getDetailTemplate()
       });
       refreshReports();
+      if (shouldPolish) {
+        if (aiPolishTimerRef.current) {
+          clearInterval(aiPolishTimerRef.current);
+        }
+        setAiPolishProgress({ active: false, percent: 100, stepIndex: 3 });
+        setTimeout(() => {
+          setAiPolishProgress((prev) =>
+            prev.percent === 100 ? { ...prev, percent: 0, stepIndex: 0 } : prev
+          );
+        }, 1200);
+      }
     } catch (err: unknown) {
       setError(getErrorMessage(err, "生成周报失败"));
+      if (shouldPolish) {
+        if (aiPolishTimerRef.current) {
+          clearInterval(aiPolishTimerRef.current);
+        }
+        setAiPolishProgress({ active: false, percent: 0, stepIndex: 0 });
+      }
     }
   };
 
@@ -494,6 +540,27 @@ export default function WeeklyReportModule() {
             <Button onClick={handleCreateReport}>生成周报</Button>
           </div>
         </div>
+        {(aiPolishProgress.active || aiPolishProgress.percent > 0) && useAiPolish && (
+          <div className="px-6 py-3 border-b border-slate-200 bg-white">
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span>
+                {[
+                  "正在汇总工作记录",
+                  "生成结构化摘要",
+                  "扩写润色内容",
+                  "完成"
+                ][aiPolishProgress.stepIndex]}
+              </span>
+              <span>{aiPolishProgress.percent}%</span>
+            </div>
+            <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
+              <div
+                className="h-2 rounded-full bg-blue-500 transition-all"
+                style={{ width: `${aiPolishProgress.percent}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 min-h-0 grid grid-cols-[320px_1fr] overflow-hidden">
           <div className="border-r border-slate-200 p-6 flex flex-col min-h-0">
