@@ -71,8 +71,8 @@ class MeetingMinutesService:
                 raise ImportError("Whisper is not installed. Please configure Aliyun ASR or install local-ai dependencies.")
 
             logger.info(f"Loading Whisper model (ffmpeg: {ffmpeg_path})...")
-            # 使用 base 模型，平衡速度和准确性。也可以配置为从环境变量读取模型大小。
-            MeetingMinutesService._model = whisper.load_model("base")
+            # 使用 tiny 模型以加速转录（可牺牲部分准确度）。
+            MeetingMinutesService._model = whisper.load_model("tiny")
         return MeetingMinutesService._model
 
     async def _transcribe_audio(self, file_path: str, task_id: str = None) -> Dict:
@@ -82,12 +82,12 @@ class MeetingMinutesService:
             logger.info(f"Starting transcription for {file_path}")
             
             # 使用 audio_service 进行分块
-            # 分块时长：10分钟 (600秒)，可以有效降低内存占用并提供进度
+            # 分块时长：15分钟 (900秒)，减少分块数量以加快处理
             from app.services.audio_service import audio_service
             loop = asyncio.get_running_loop()
             
             # 在 executor 中运行分块，避免阻塞
-            chunk_duration = 600
+            chunk_duration = 900
             chunks = await loop.run_in_executor(None, audio_service.split_audio, file_path, chunk_duration)
             
             total_chunks = len(chunks)
@@ -100,9 +100,17 @@ class MeetingMinutesService:
                     logger.info(f"[{task_id}] Processing chunk {i+1}/{total_chunks}: {chunk_path}")
                 
                 def run_transcription_chunk():
-                    # 调用 whisper 转录单个分块
-                    # initial_prompt: 提示模型使用简体中文，可以有效减少繁体字输出
-                    return model.transcribe(chunk_path, fp16=False, initial_prompt="以下是简体中文的会议记录。")
+                    # 使用更快的解码设置，优先速度
+                    return model.transcribe(
+                        chunk_path,
+                        fp16=False,
+                        language="zh",
+                        task="transcribe",
+                        beam_size=1,
+                        best_of=1,
+                        condition_on_previous_text=False,
+                        initial_prompt="以下是简体中文的会议记录。"
+                    )
                 
                 chunk_result = await loop.run_in_executor(None, run_transcription_chunk)
                 full_text.append(chunk_result["text"])

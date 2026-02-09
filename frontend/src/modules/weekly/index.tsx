@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import {
   createWeeklyReport,
   createWorkLog,
   deleteWorkLog,
+  deleteWeeklyReport,
   exportWeeklyReport,
   getWeeklyReport,
   listWeeklyReports,
@@ -23,7 +24,10 @@ import {
   getCurrentWeekRange,
   getDetailTemplate,
   getSummaryTemplate,
+  getPlaceholderCount,
+  getSummaryPreview,
   normalizeSummary,
+  parseWeeklySections,
   toIsoDateTime
 } from "./utils";
 
@@ -36,6 +40,7 @@ export default function WeeklyReportModule() {
   const [logs, setLogs] = useState<WorkLog[]>([]);
   const [reports, setReports] = useState<WeeklyReport[]>([]);
   const [selectedReport, setSelectedReport] = useState<WeeklyReport | null>(null);
+  const [filterWeek, setFilterWeek] = useState("all");
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [loadingReports, setLoadingReports] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
@@ -48,6 +53,14 @@ export default function WeeklyReportModule() {
     hours_spent: "",
     log_date: weekRange.start
   });
+  const [selectedLogIds, setSelectedLogIds] = useState<number[]>([]);
+  const [useAiPolish, setUseAiPolish] = useState(false);
+  const [aiPolishProgress, setAiPolishProgress] = useState({
+    active: false,
+    percent: 0,
+    stepIndex: 0
+  });
+  const aiPolishTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [reportDraft, setReportDraft] = useState({
     title: "",
@@ -66,10 +79,10 @@ export default function WeeklyReportModule() {
     setError(null);
     try {
       const data = await listWorkLogs({
-        date_from: weekStart,
-        date_to: weekEnd,
+        date_from: toIsoDateTime(weekStart),
+        date_to: toIsoDateTime(weekEnd, true),
         skip: 0,
-        limit: 200
+        limit: 1000
       });
       setLogs(data.items || []);
     } catch (err: unknown) {
@@ -83,7 +96,7 @@ export default function WeeklyReportModule() {
     setLoadingReports(true);
     setError(null);
     try {
-      const data = await listWeeklyReports({ limit: 20, skip: 0 });
+      const data = await listWeeklyReports({ limit: 100, skip: 0 });
       setReports(data.items || []);
     } catch (err: unknown) {
       setError(getErrorMessage(err, "获取周报列表失败"));
@@ -91,6 +104,29 @@ export default function WeeklyReportModule() {
       setLoadingReports(false);
     }
   }, [getErrorMessage]);
+
+  const weekOptions = useMemo(() => {
+    const weeks = new Set(reports.map((report) => report.week));
+    return ["all", ...Array.from(weeks)];
+  }, [reports]);
+
+  const visibleReports = useMemo(() => {
+    if (filterWeek === "all") return reports;
+    return reports.filter((report) => report.week === filterWeek);
+  }, [filterWeek, reports]);
+
+  const groupedReports = useMemo(() => {
+    const grouped = new Map<string, WeeklyReport[]>();
+    visibleReports.forEach((report) => {
+      const list = grouped.get(report.week) || [];
+      list.push(report);
+      grouped.set(report.week, list);
+    });
+    return Array.from(grouped.entries()).map(([week, items]) => ({
+      week,
+      items
+    }));
+  }, [visibleReports]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -106,6 +142,14 @@ export default function WeeklyReportModule() {
   useEffect(() => {
     refreshReports();
   }, [refreshReports]);
+
+  useEffect(() => {
+    return () => {
+      if (aiPolishTimerRef.current) {
+        clearInterval(aiPolishTimerRef.current);
+      }
+    };
+  }, []);
 
   if (!isAuthed) {
     return (
@@ -161,13 +205,93 @@ export default function WeeklyReportModule() {
     }
   };
 
+  const toggleLogSelection = (id: number) => {
+    setSelectedLogIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const ensureSection = (text: string, header: string) => {
+    if (text.includes(header)) return text;
+    return text ? `${text}\n\n${header}\n- ` : `${header}\n- `;
+  };
+
+  const insertLinesIntoSection = (text: string, header: string, lines: string[]) => {
+    if (!lines.length) return text;
+    const normalized = ensureSection(text, header);
+    const parts = normalized.split(/\r?\n/);
+    const headerIndex = parts.findIndex((line) => line.replace(/[:：]\s*$/, "") === header.replace(/[:：]\s*$/, ""));
+    if (headerIndex === -1) return normalized + "\n" + lines.map((line) => `- ${line}`).join("\n");
+
+    let insertIndex = headerIndex + 1;
+    while (insertIndex < parts.length && !/^[^\s].*[:：]$/.test(parts[insertIndex])) {
+      insertIndex += 1;
+    }
+
+    const existing = new Set(
+      parts
+        .slice(headerIndex + 1, insertIndex)
+        .map((line) => line.replace(/^[-*\d\.\)]+\s*/, "").trim())
+        .filter(Boolean)
+    );
+
+    const toInsert = lines.filter((line) => !existing.has(line));
+    const insertLines = toInsert.map((line) => `- ${line}`);
+    parts.splice(insertIndex, 0, ...insertLines);
+    return parts.join("\n");
+  };
+
+  const handleAddSelectedLogs = () => {
+    if (!selectedReport) {
+      setError("请先选择一份周报再添加记录");
+      return;
+    }
+    if (!selectedLogIds.length) {
+      setError("请选择需要添加的工作记录");
+      return;
+    }
+
+    const selectedLogs = logs.filter((log) => selectedLogIds.includes(log.id));
+    const lines = selectedLogs.map(
+      (log) => `${log.work_type}：${log.task_description}（${log.hours_spent}h）`
+    );
+
+    setReportDraft((prev) => {
+      const summaryWithHeader = ensureSection(prev.summary || "", "本周完成：");
+      const contentWithHeader = ensureSection(prev.content || "", "本周完成：");
+      return {
+        ...prev,
+        summary: insertLinesIntoSection(summaryWithHeader, "本周完成：", lines),
+        content: insertLinesIntoSection(contentWithHeader, "本周完成：", lines)
+      };
+    });
+
+    setSelectedLogIds([]);
+  };
+
   const handleCreateReport = async () => {
     setError(null);
+    const shouldPolish = useAiPolish;
+    if (shouldPolish) {
+      if (aiPolishTimerRef.current) {
+        clearInterval(aiPolishTimerRef.current);
+      }
+      setAiPolishProgress({ active: true, percent: 10, stepIndex: 0 });
+      aiPolishTimerRef.current = setInterval(() => {
+        setAiPolishProgress((prev) => {
+          if (!prev.active) return prev;
+          const nextPercent = Math.min(prev.percent + 10, 90);
+          const nextStep = Math.min(Math.floor(nextPercent / 30), 2);
+          return { ...prev, percent: nextPercent, stepIndex: nextStep };
+        });
+      }, 800);
+    }
     try {
       const report = await createWeeklyReport({
         title: reportDraft.title || undefined,
         week_start_date: toIsoDateTime(weekStart),
-        week_end_date: toIsoDateTime(weekEnd, true)
+        week_end_date: toIsoDateTime(weekEnd, true),
+        ai_polish: shouldPolish
       });
       setSelectedReport(report);
       const summary = normalizeSummary(report.summary);
@@ -177,8 +301,25 @@ export default function WeeklyReportModule() {
         content: report.content || getDetailTemplate()
       });
       refreshReports();
+      if (shouldPolish) {
+        if (aiPolishTimerRef.current) {
+          clearInterval(aiPolishTimerRef.current);
+        }
+        setAiPolishProgress({ active: false, percent: 100, stepIndex: 3 });
+        setTimeout(() => {
+          setAiPolishProgress((prev) =>
+            prev.percent === 100 ? { ...prev, percent: 0, stepIndex: 0 } : prev
+          );
+        }, 1200);
+      }
     } catch (err: unknown) {
       setError(getErrorMessage(err, "生成周报失败"));
+      if (shouldPolish) {
+        if (aiPolishTimerRef.current) {
+          clearInterval(aiPolishTimerRef.current);
+        }
+        setAiPolishProgress({ active: false, percent: 0, stepIndex: 0 });
+      }
     }
   };
 
@@ -187,6 +328,7 @@ export default function WeeklyReportModule() {
     try {
       const report = await getWeeklyReport(reportId);
       setSelectedReport(report);
+      setSelectedLogIds([]);
       const summary = normalizeSummary(report.summary);
       setReportDraft({
         title: report.title || "",
@@ -197,6 +339,17 @@ export default function WeeklyReportModule() {
       setError(getErrorMessage(err, "获取周报详情失败"));
     }
   };
+
+  const summarySections = useMemo(() => parseWeeklySections(reportDraft.summary), [reportDraft.summary]);
+  const contentSections = useMemo(() => parseWeeklySections(reportDraft.content), [reportDraft.content]);
+  const summaryPlaceholderCount = useMemo(
+    () => getPlaceholderCount(reportDraft.summary),
+    [reportDraft.summary]
+  );
+  const contentPlaceholderCount = useMemo(
+    () => getPlaceholderCount(reportDraft.content),
+    [reportDraft.content]
+  );
 
   const handleApplyTemplate = () => {
     setReportDraft((prev) => ({
@@ -222,6 +375,19 @@ export default function WeeklyReportModule() {
       setError(getErrorMessage(err, "保存周报失败"));
     } finally {
       setSavingReport(false);
+    }
+  };
+
+  const handleDeleteReport = async () => {
+    if (!selectedReport) return;
+    setError(null);
+    try {
+      await deleteWeeklyReport(selectedReport.id);
+      setSelectedReport(null);
+      setReportDraft({ title: "", summary: "", content: "" });
+      refreshReports();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "删除周报失败"));
     }
   };
 
@@ -275,121 +441,85 @@ export default function WeeklyReportModule() {
 
   return (
     <div className="flex-1 flex gap-0 overflow-hidden w-full h-full border border-slate-200 rounded-lg shadow-lg">
-      <div className="w-[30rem] bg-slate-50 border-r border-slate-200 flex flex-col shrink-0">
+      <div className="w-[30rem] bg-slate-50 border-r border-slate-200 flex flex-col shrink-0 min-h-0">
         <div className="p-6 border-b border-slate-200 bg-white">
           <h2 className="text-lg font-semibold text-slate-800">周报整理</h2>
           <p className="text-xs text-slate-500 mt-1">基于工作记录自动汇总，可自行润色</p>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">周起止日期</label>
-            <div className="flex gap-2">
-              <input
-                type="date"
-                className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm"
-                value={weekStart}
-                onChange={(e) => setWeekStart(e.target.value)}
-              />
-              <input
-                type="date"
-                className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm"
-                value={weekEnd}
-                onChange={(e) => setWeekEnd(e.target.value)}
-              />
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="p-4 space-y-3">
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">周起止日期</label>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm"
+                  value={weekStart}
+                  onChange={(e) => setWeekStart(e.target.value)}
+                />
+                <input
+                  type="date"
+                  className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm"
+                  value={weekEnd}
+                  onChange={(e) => setWeekEnd(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
 
-          <KnowledgeBaseSelector
-            value={knowledgeBaseIds}
-            onChange={setKnowledgeBaseIds}
-            title="引用知识库"
-          />
+            <KnowledgeBaseSelector
+              value={knowledgeBaseIds}
+              onChange={setKnowledgeBaseIds}
+              title="引用知识库"
+            />
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
-            <h3 className="text-sm font-medium text-slate-700">新增工作记录</h3>
-            <input
-              className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm"
-              placeholder="工作类型（例：需求分析 / 开发 / 会议）"
-              value={logForm.work_type}
-              onChange={(e) =>
-                setLogForm((prev) => ({ ...prev, work_type: e.target.value }))
-              }
-            />
-            <textarea
-              className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm min-h-[80px]"
-              placeholder="任务描述（尽量写成业务视角，比如：完成某功能的联调/上线准备）"
-              value={logForm.task_description}
-              onChange={(e) =>
-                setLogForm((prev) => ({ ...prev, task_description: e.target.value }))
-              }
-            />
-            <div className="flex gap-2">
+            <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+              <h3 className="text-sm font-medium text-slate-700">新增工作记录</h3>
               <input
-                type="number"
-                step="0.5"
                 className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm"
-                placeholder="耗时（小时）"
-                value={logForm.hours_spent}
+                placeholder="工作类型（例：需求分析 / 开发 / 会议）"
+                value={logForm.work_type}
                 onChange={(e) =>
-                  setLogForm((prev) => ({ ...prev, hours_spent: e.target.value }))
+                  setLogForm((prev) => ({ ...prev, work_type: e.target.value }))
                 }
               />
-              <input
-                type="date"
-                className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm"
-                value={logForm.log_date}
+              <textarea
+                className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm min-h-[80px]"
+                placeholder="任务描述（尽量写成业务视角，比如：完成某功能的联调/上线准备）"
+                value={logForm.task_description}
                 onChange={(e) =>
-                  setLogForm((prev) => ({ ...prev, log_date: e.target.value }))
+                  setLogForm((prev) => ({ ...prev, task_description: e.target.value }))
                 }
               />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="0.5"
+                  className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm"
+                  placeholder="耗时（小时）"
+                  value={logForm.hours_spent}
+                  onChange={(e) =>
+                    setLogForm((prev) => ({ ...prev, hours_spent: e.target.value }))
+                  }
+                />
+                <input
+                  type="date"
+                  className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm"
+                  value={logForm.log_date}
+                  onChange={(e) =>
+                    setLogForm((prev) => ({ ...prev, log_date: e.target.value }))
+                  }
+                />
+              </div>
+              <Button onClick={handleCreateLog} className="w-full">
+                保存记录
+              </Button>
             </div>
-            <Button onClick={handleCreateLog} className="w-full">
-              保存记录
-            </Button>
           </div>
-        </div>
-
-        <div className="flex-1 p-6 pt-0 overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-slate-700">本周记录</h3>
-            <Badge variant="secondary" className="text-xs">
-              {loadingLogs ? "加载中" : `${logs.length} 条`}
-            </Badge>
-          </div>
-          <ScrollArea className="h-[320px]">
-            <div className="space-y-3">
-              {logs.length === 0 && !loadingLogs && (
-                <div className="text-xs text-slate-500">暂无记录</div>
-              )}
-              {logs.map((log) => (
-                <Card key={log.id} className="p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-medium text-slate-700">
-                      {log.work_type}
-                    </div>
-                    <span className="text-[11px] text-slate-400">
-                      {formatDate(log.log_date)} · {log.hours_spent}h
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    {log.task_description}
-                  </p>
-                  <Button
-                    variant="secondary"
-                    className="w-full text-xs"
-                    onClick={() => handleDeleteLog(log.id)}
-                  >
-                    删除
-                  </Button>
-                </Card>
-              ))}
-            </div>
-          </ScrollArea>
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col bg-white">
+      <div className="flex-1 flex flex-col bg-white min-h-0">
         <div className="h-16 border-b border-slate-200 flex items-center justify-between px-6">
           <div>
             <h1 className="font-semibold text-slate-800">周报生成</h1>
@@ -399,52 +529,176 @@ export default function WeeklyReportModule() {
             <Button variant="secondary" onClick={refreshReports}>
               刷新列表
             </Button>
+            <label className="flex items-center gap-2 text-xs text-slate-500">
+              <input
+                type="checkbox"
+                checked={useAiPolish}
+                onChange={(e) => setUseAiPolish(e.target.checked)}
+              />
+              AI 扩写润色
+            </label>
             <Button onClick={handleCreateReport}>生成周报</Button>
           </div>
         </div>
+        {(aiPolishProgress.active || aiPolishProgress.percent > 0) && useAiPolish && (
+          <div className="px-6 py-3 border-b border-slate-200 bg-white">
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span>
+                {[
+                  "正在汇总工作记录",
+                  "生成结构化摘要",
+                  "扩写润色内容",
+                  "完成"
+                ][aiPolishProgress.stepIndex]}
+              </span>
+              <span>{aiPolishProgress.percent}%</span>
+            </div>
+            <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
+              <div
+                className="h-2 rounded-full bg-blue-500 transition-all"
+                style={{ width: `${aiPolishProgress.percent}%` }}
+              />
+            </div>
+          </div>
+        )}
 
-        <div className="flex-1 grid grid-cols-[320px_1fr] overflow-hidden">
-          <div className="border-r border-slate-200 p-6">
+        <div className="flex-1 min-h-0 grid grid-cols-[320px_1fr] overflow-hidden">
+          <div className="border-r border-slate-200 p-6 flex flex-col min-h-0">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-slate-700">历史周报</h3>
               <Badge variant="secondary" className="text-xs">
                 {loadingReports ? "加载中" : `${reports.length} 份`}
               </Badge>
             </div>
-            <ScrollArea className="h-[520px]">
-              <div className="space-y-3">
-                {reports.length === 0 && !loadingReports && (
+            <div className="mb-4">
+              <label className="block text-[11px] text-slate-500 mb-1">按周筛选</label>
+              <select
+                className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs"
+                value={filterWeek}
+                onChange={(e) => setFilterWeek(e.target.value)}
+              >
+                {weekOptions.map((week) => (
+                  <option key={week} value={week}>
+                    {week === "all" ? "全部周次" : week}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <ScrollArea className="h-[320px]">
+              <div className="space-y-4">
+                {visibleReports.length === 0 && !loadingReports && (
                   <div className="text-xs text-slate-500">暂无周报</div>
                 )}
-                {reports.map((report) => (
-                  <Card
-                    key={report.id}
-                    className={`p-3 space-y-2 cursor-pointer transition hover:shadow ${
-                      selectedReport?.id === report.id ? "border-blue-500" : ""
-                    }`}
-                    onClick={() => handleSelectReport(report.id)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs font-medium text-slate-700">
-                        {report.title || report.week}
-                      </div>
-                      <Badge
-                        variant={report.status === "draft" ? "secondary" : "default"}
-                        className="text-[10px]"
+                {groupedReports.map(({ week, items }) => (
+                  <div key={week} className="space-y-2">
+                    <div className="text-[11px] font-semibold text-slate-500">
+                      {week}
+                    </div>
+                    {items.map((report) => (
+                      <Card
+                        key={report.id}
+                        className={`p-3 space-y-2 cursor-pointer transition hover:shadow ${
+                          selectedReport?.id === report.id ? "border-blue-500" : ""
+                        }`}
+                        onClick={() => handleSelectReport(report.id)}
                       >
-                        {report.status}
-                      </Badge>
-                    </div>
-                    <div className="text-[11px] text-slate-400">
-                      {formatDate(report.week_start_date)} - {formatDate(report.week_end_date)}
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      总工时：{report.total_hours}h
-                    </div>
-                  </Card>
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-medium text-slate-700">
+                            {report.title || report.week}
+                          </div>
+                          <Badge
+                            variant={report.status === "draft" ? "secondary" : "default"}
+                            className="text-[10px]"
+                          >
+                            {report.status}
+                          </Badge>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {formatDate(report.week_start_date)} - {formatDate(report.week_end_date)}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          总工时：{report.total_hours}h
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          摘要：{getSummaryPreview(report.summary)}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
                 ))}
               </div>
             </ScrollArea>
+
+            <div className="mt-6 border-t border-slate-200 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-slate-700">本周记录</h3>
+                <Badge variant="secondary" className="text-xs">
+                  {loadingLogs ? "加载中" : `${logs.length} 条`}
+                </Badge>
+              </div>
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-[11px] text-slate-500">
+                  已选择 {selectedLogIds.length} 条
+                </span>
+                <Button
+                  variant="secondary"
+                  className="text-xs"
+                  onClick={handleAddSelectedLogs}
+                  disabled={!selectedLogIds.length}
+                >
+                  添加进周报
+                </Button>
+              </div>
+              <ScrollArea className="h-[260px]">
+                <div className="space-y-3">
+                  {logs.length === 0 && !loadingLogs && (
+                    <div className="text-xs text-slate-500">暂无记录</div>
+                  )}
+                  {logs.map((log) => (
+                    <Card key={log.id} className="p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-medium text-slate-700">
+                          {log.work_type}
+                        </div>
+                        <span className="text-[11px] text-slate-400">
+                          {formatDate(log.log_date)} · {log.hours_spent}h
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {log.task_description}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] text-slate-500 flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedLogIds.includes(log.id)}
+                            onChange={() => toggleLogSelection(log.id)}
+                          />
+                          选入周报
+                        </label>
+                        <Button
+                          variant="secondary"
+                          className="text-xs"
+                          onClick={() => {
+                            setSelectedLogIds([log.id]);
+                            handleAddSelectedLogs();
+                          }}
+                        >
+                          立刻添加
+                        </Button>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        className="w-full text-xs"
+                        onClick={() => handleDeleteLog(log.id)}
+                      >
+                        删除
+                      </Button>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
           </div>
 
           <div className="p-6 space-y-4 overflow-y-auto">
@@ -467,6 +721,54 @@ export default function WeeklyReportModule() {
                       {selectedReport.status}
                     </Badge>
                   </div>
+                  <div className="grid gap-3 rounded-md border border-slate-100 bg-slate-50 p-3">
+                    <div>
+                      <div className="text-[11px] font-semibold text-slate-600">结构化摘要预览</div>
+                      <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-600">
+                        <div>
+                          <span className="font-medium text-slate-700">本周完成：</span>
+                          {summarySections.completed.length
+                            ? summarySections.completed.join("；")
+                            : "暂无"}
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-700">问题与风险：</span>
+                          {summarySections.risks.length
+                            ? summarySections.risks.join("；")
+                            : "暂无"}
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-700">下周计划：</span>
+                          {summarySections.plans.length
+                            ? summarySections.plans.join("；")
+                            : "暂无"}
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-semibold text-slate-600">详细内容预览</div>
+                      <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-600">
+                        <div>
+                          <span className="font-medium text-slate-700">本周完成：</span>
+                          {contentSections.completed.length
+                            ? contentSections.completed.join("；")
+                            : "暂无"}
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-700">问题与风险：</span>
+                          {contentSections.risks.length
+                            ? contentSections.risks.join("；")
+                            : "暂无"}
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-700">下周计划：</span>
+                          {contentSections.plans.length
+                            ? contentSections.plans.join("；")
+                            : "暂无"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div className="grid gap-2">
                     <label className="text-xs text-slate-500">标题</label>
                     <input
@@ -486,6 +788,11 @@ export default function WeeklyReportModule() {
                         setReportDraft((prev) => ({ ...prev, summary: e.target.value }))
                       }
                     />
+                    {summaryPlaceholderCount > 0 && (
+                      <p className="text-[11px] text-amber-600">
+                        还有 {summaryPlaceholderCount} 处占位未填写。
+                      </p>
+                    )}
                     <p className="text-[11px] text-slate-400">
                       建议写法：用业务成果+结果描述，比如“完成 XX 功能联调，关键流程可用”。
                     </p>
@@ -499,6 +806,11 @@ export default function WeeklyReportModule() {
                         setReportDraft((prev) => ({ ...prev, content: e.target.value }))
                       }
                     />
+                    {contentPlaceholderCount > 0 && (
+                      <p className="text-[11px] text-amber-600">
+                        还有 {contentPlaceholderCount} 处占位未填写。
+                      </p>
+                    )}
                     <p className="text-[11px] text-slate-400">
                       可以补充：问题/风险、协作事项、下周计划等。
                     </p>
@@ -509,6 +821,14 @@ export default function WeeklyReportModule() {
                     </Button>
                     <Button onClick={handleSaveReport} disabled={savingReport}>
                       保存
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="text-red-600 border-red-200"
+                      onClick={handleDeleteReport}
+                      disabled={selectedReport.status !== "draft"}
+                    >
+                      删除周报
                     </Button>
                     <Button
                       variant="secondary"

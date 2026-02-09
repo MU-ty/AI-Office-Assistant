@@ -49,6 +49,7 @@ class WeeklyReportCreate(BaseModel):
     title: Optional[str] = Field(None, max_length=255, description="周报标题")
     week_start_date: datetime = Field(..., description="周开始日期")
     week_end_date: datetime = Field(..., description="周结束日期")
+    ai_polish: Optional[bool] = Field(False, description="是否使用AI扩写润色")
 
 
 class WeeklyReportUpdate(BaseModel):

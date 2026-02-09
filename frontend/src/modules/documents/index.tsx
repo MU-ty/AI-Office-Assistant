@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -261,12 +262,15 @@ export default function DocumentsModule() {
           </div>
           <div className="space-y-2">
             <label className="text-xs text-slate-500">摘要内容</label>
-            <textarea
-              className="min-h-[260px] w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-              value={summary?.summary_text || ""}
-              readOnly
-              placeholder="摘要内容会显示在这里"
-            />
+            <div className="min-h-[260px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+              {summary?.summary_text ? (
+                <div className="prose prose-slate max-w-none text-sm">
+                  <ReactMarkdown>{summary.summary_text}</ReactMarkdown>
+                </div>
+              ) : (
+                <div className="text-slate-400">摘要内容会显示在这里</div>
+              )}
+            </div>
           </div>
           {summary?.quality_score !== undefined && summary?.quality_score !== null && (
             <div className="text-xs text-slate-500">质量评分：{summary.quality_score}</div>

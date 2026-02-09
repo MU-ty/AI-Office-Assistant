@@ -218,5 +218,87 @@ class LLMService:
             logger.error(f"提取引用失败: {e}")
             return []
 
+    def polish_weekly_report(self, summary: str, content: str) -> Dict[str, str]:
+        """使用Qwen扩写与润色周报"""
+        if not self.check_availability():
+            return {"summary": summary, "content": content}
+
+        system_prompt = (
+            "你是专业的周报写作助手。"
+            "请对用户提供的周报摘要与详细内容进行扩写和润色，"
+            "保持结构清晰，包含：本周完成 / 问题与风险 / 下周计划。"
+            "输出JSON对象，格式：{\"summary\": \"...\", \"content\": \"...\"}。"
+        )
+        user_prompt = (
+            "摘要：\n" + summary + "\n\n" +
+            "详细内容：\n" + content
+        )
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.2,
+                response_format={"type": "json_object"}
+            )
+            content_res = response.choices[0].message.content.strip()
+            content_res = content_res.replace("```json", "").replace("```", "").strip()
+            data = json.loads(content_res)
+            return {
+                "summary": str(data.get("summary", summary)).strip(),
+                "content": str(data.get("content", content)).strip()
+            }
+        except Exception as e:
+            logger.error(f"周报润色失败: {e}")
+            return {"summary": summary, "content": content}
+
+    async def expand_ppt_bullets(self, title: str, slide_title: str, bullets: List[str]) -> List[str]:
+        """扩展PPT大纲要点为更完整的表达（3-5句）"""
+        if not self.check_availability():
+            return bullets
+
+        if not bullets:
+            return bullets
+
+        system_prompt = (
+            "你是专业的PPT写作助手。请把要点扩展成3-5句简洁但完整的说明，"
+            "保持专业、清晰、可直接放进PPT正文。"
+            "仅输出JSON对象，格式：{\"bullets\": [\"...\", \"...\"]}。"
+        )
+        user_prompt = (
+            f"演示主题：{title}\n"
+            f"当前页标题：{slide_title}\n"
+            "原始要点：\n"
+            + "\n".join([f"- {b}" for b in bullets])
+        )
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.2,
+                response_format={"type": "json_object"}
+            )
+            content = response.choices[0].message.content.strip()
+            content = content.replace("```json", "").replace("```", "").strip()
+            data = json.loads(content)
+
+            if isinstance(data, dict):
+                expanded = data.get("bullets") or data.get("sentences") or []
+            else:
+                expanded = data
+
+            expanded = [str(item).strip() for item in expanded if str(item).strip()]
+            return expanded or bullets
+        except Exception as e:
+            logger.error(f"扩展PPT要点失败: {e}")
+            return bullets
+
 # 全局实例git 
 llm_service = LLMService()

@@ -24,21 +24,21 @@ const unwrap = async <T>(response: Response): Promise<T> => {
 };
 
 export async function fetchMeetingHistory() {
-  const response = await fetch(`${API_BASE}/api/v1/meetings?skip=0&limit=5`, {
+  const response = await fetch(`${API_BASE}/api/v1/meetings?skip=0&limit=1000`, {
     headers: { ...getAuthHeaders() }
   });
   return unwrap<Array<Record<string, unknown>>>(response);
 }
 
 export async function fetchWeeklyHistory() {
-  const response = await fetch(`${API_BASE}/api/v1/reports?skip=0&limit=5`, {
+  const response = await fetch(`${API_BASE}/api/v1/reports?skip=0&limit=100`, {
     headers: { ...getAuthHeaders() }
   });
   return unwrap<{ items: Array<Record<string, unknown>> }>(response);
 }
 
 export async function fetchPolishHistory() {
-  const response = await fetch(`${API_BASE}/api/v1/polish?skip=0&limit=5`, {
+  const response = await fetch(`${API_BASE}/api/v1/polish?skip=0&limit=100`, {
     headers: { ...getAuthHeaders() }
   });
   return unwrap<{ items: Array<Record<string, unknown>> }>(response);
@@ -52,14 +52,14 @@ export async function fetchDocumentHistory() {
 }
 
 export async function fetchTranslationHistory() {
-  const response = await fetch(`${API_BASE}/api/v1/translations?skip=0&limit=5`, {
+  const response = await fetch(`${API_BASE}/api/v1/translations?skip=0&limit=1000`, {
     headers: { ...getAuthHeaders() }
   });
   return unwrap<{ items: Array<Record<string, unknown>> }>(response);
 }
 
 export async function fetchPptHistory() {
-  const response = await fetch(`${API_BASE}/api/v1/ppt?skip=0&limit=5`, {
+  const response = await fetch(`${API_BASE}/api/v1/ppt?skip=0&limit=1000`, {
     headers: { ...getAuthHeaders() }
   });
   return unwrap<{ items: Array<Record<string, unknown>> }>(response);
