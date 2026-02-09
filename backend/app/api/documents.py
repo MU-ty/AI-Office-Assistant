@@ -114,7 +114,8 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     title: str = Form(...),
     file: UploadFile = File(...),
-    kb_id: Optional[str] = Form(None),
+    kb_id: Optional[int] = Form(None),
+    dir_id: Optional[int] = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
@@ -122,7 +123,7 @@ async def upload_document(
     try:
         service = DocumentService(db)
         # 1. 第一阶段：保存文件并创建记录
-        result = await service.create_document(title, file, current_user_id, kb_id)
+        result = await service.create_document(title, file, current_user_id, kb_id, dir_id)
         
         # 2. 第二阶段：触发后台处理任务
         background_tasks.add_task(service.process_document_background, result["id"])
@@ -166,13 +167,22 @@ async def list_documents(
     skip: int = 0,
     limit: int = 10,
     category: Optional[str] = None,
+    knowledge_base_id: Optional[int] = None,
+    directory_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
     """获取文档列表"""
     try:
         service = DocumentService(db)
-        result = await service.list_documents(skip, limit, category, current_user_id)
+        result = await service.list_documents(
+            skip, 
+            limit, 
+            category, 
+            current_user_id,
+            knowledge_base_id,
+            directory_id
+        )
         return {"code": 200, "message": "获取成功", "data": result}
     except Exception as e:
         logger.error(f"获取文档列表失败: {e}")
@@ -189,11 +199,11 @@ async def get_document_details(
     try:
         service = DocumentService(db)
         # 优先从 WeKnora 获取，如果失败则回退到本地数据库
-        try:
-            return await service.get_document_details(doc_id)
-        except Exception:
-            result = await service.get_document(doc_id, current_user_id)
-            return {"code": 200, "message": "获取成功 (本地)", "data": result}
+        # try:
+        #     return await service.get_document_details(doc_id)
+        # except Exception:
+        result = await service.get_document(doc_id, current_user_id)
+        return {"code": 200, "message": "获取成功 (本地)", "data": result}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

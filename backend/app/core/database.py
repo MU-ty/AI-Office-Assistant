@@ -85,7 +85,7 @@ async def init_db():
     try:
         async with engine.begin() as conn:
             # 注意：这里需要先导入所有模型
-            from app.models import user, meeting, document, polish, translation, ppt, report
+            from app.models import user, meeting, document, polish, translation, ppt, report, knowledge
             
             await conn.run_sync(Base.metadata.create_all)
             # 无论 SQLite 还是 PostgreSQL，都确保关键列存在
@@ -123,9 +123,13 @@ async def _ensure_db_schema(conn):
                 ("meta_info", "TEXT"),
                 ("weknora_knowledge_id", "VARCHAR(100)"),
                 ("weknora_kb_id", "VARCHAR(100)"),
+                ("knowledge_base_id", "INTEGER"),
+                ("directory_id", "INTEGER"),
                 ("status", "VARCHAR(20)"),
                 ("error_message", "TEXT"),
                 ("processing_progress", "INTEGER"),
+                ("review_status", "VARCHAR(20)"),
+                ("current_version", "INTEGER"),
             ],
             "ppt_projects": [
                 ("user_id", "INTEGER"),

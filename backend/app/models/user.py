@@ -4,6 +4,7 @@
 
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
@@ -19,6 +20,10 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 关联
+    owned_knowledge_bases = relationship("KnowledgeBase", back_populates="owner")
+    documents = relationship("Document", back_populates="user")
     
     def __repr__(self):
         return f"<User(id={self.id}, username={self.username}, email={self.email})>"

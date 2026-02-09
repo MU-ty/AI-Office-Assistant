@@ -11,7 +11,7 @@ from fastapi import UploadFile, HTTPException
 from datetime import datetime
 
 from app.utils.logger import get_logger
-from app.models.meeting import Meeting, MeetingMinute
+from app.models.meeting import Meeting, MeetingMinutes
 from app.services.meeting_minutes_service import MeetingMinutesService
 from app.services.stream_service import StreamService, StreamProvider
 from app.core.config import settings

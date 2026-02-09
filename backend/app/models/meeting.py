@@ -25,7 +25,7 @@ class Meeting(Base):
         return f"<Meeting(id={self.id}, title={self.title}, status={self.status})>"
 
 
-class MeetingMinute(Base):
+class MeetingMinutes(Base):
     """会议纪要模型"""
     __tablename__ = "meeting_minutes"
     
@@ -38,4 +38,4 @@ class MeetingMinute(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     def __repr__(self):
-        return f"<MeetingMinute(id={self.id}, meeting_id={self.meeting_id}, format={self.format_type})>"
+        return f"<MeetingMinutes(id={self.id}, meeting_id={self.meeting_id}, format={self.format_type})>"

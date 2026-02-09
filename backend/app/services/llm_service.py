@@ -1,4 +1,3 @@
-
 import json
 from typing import Dict, List, Any, Optional
 from app.core.config import settings
@@ -27,8 +26,8 @@ class LLMService:
 
         logger.info(f"Initializing LLM Client with API Key (prefix): {self.api_key[:8]}...")
         try:
-            from openai import OpenAI
-            self.client = OpenAI(
+            from openai import AsyncOpenAI
+            self.client = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url
             )
@@ -40,7 +39,72 @@ class LLMService:
         """检查 LLM 服务是否可用"""
         return self.client is not None and bool(self.api_key)
 
-    def analyze_meeting_transcript(self, transcript: str) -> Dict[str, Any]:
+    # 核心修复：这一行的缩进改为 4 个空格（之前是 3 个）
+    async def get_embeddings(self, text: str, model: str = "text-embedding-v3") -> List[float]:
+        """
+        获取文本的向量表示 (Embedding)
+        
+        Args:
+            text: 输入文本
+            model: 模型名称，默认 text-embedding-v3 (OpenAI 兼容) 或 text-embedding-v1 (DashScope)
+            
+        Returns:
+            向量列表 (List[float])
+        """
+        if not self.check_availability():
+            logger.warning("LLM 服务不可用，无法生成 Embedding")
+            return []
+            
+        try:
+            # 移除换行符，避免影响 embedding 质量
+            text = text.replace("\n", " ")
+            
+            response = await self.client.embeddings.create(
+                input=[text],
+                model=model
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            logger.error(f"生成 Embedding 失败: {e}")
+            # 如果是模型名称错误，尝试降级到 text-embedding-v1
+            if "model" in str(e).lower() and model == "text-embedding-v3":
+                logger.info("尝试降级到 text-embedding-v1")
+                return await self.get_embeddings(text, model="text-embedding-v1")
+            return []
+
+    async def chat(self, messages: List[Dict[str, str]], stream: bool = False, temperature: float = 0.7) -> Any:
+        """
+        通用对话接口
+        
+        Args:
+            messages: 消息列表 [{"role": "user", "content": "..."}]
+            stream: 是否流式输出
+            temperature: 温度参数
+        """
+        if not self.check_availability():
+            if stream:
+                async def error_gen():
+                    yield "LLM 服务不可用"
+                return error_gen()
+            return "LLM 服务不可用"
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                stream=stream
+            )
+            return response
+        except Exception as e:
+            logger.error(f"Chat 请求失败: {e}")
+            if stream:
+                async def error_gen():
+                    yield f"Chat 请求失败: {str(e)}"
+                return error_gen()
+            return f"Chat 请求失败: {str(e)}"
+
+    async def analyze_meeting_transcript(self, transcript: str) -> Dict[str, Any]:
         """
         分析会议转录文本，提取结构化信息
         
@@ -91,7 +155,7 @@ class LLMService:
 
         try:
             logger.info(f"开始调用 Qwen API 分析会议文本，模型: {self.model}")
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -148,7 +212,7 @@ class LLMService:
         user_prompt = f"请分析以下文档内容并生成摘要：\n\n{content[:20000]}" # 限制输入长度
 
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -173,7 +237,7 @@ class LLMService:
         user_prompt = f"请从以下内容中提取关键概念：\n\n{content[:20000]}"
 
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -202,7 +266,7 @@ class LLMService:
         user_prompt = f"请从以下内容中提取引用信息：\n\n{content[:20000]}"
 
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -218,5 +282,5 @@ class LLMService:
             logger.error(f"提取引用失败: {e}")
             return []
 
-# 全局实例git 
+# 全局实例（清理了多余的 "git " 文字）
 llm_service = LLMService()

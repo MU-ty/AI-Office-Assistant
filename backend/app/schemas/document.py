@@ -9,6 +9,9 @@ from pydantic import BaseModel, Field
 class DocumentUpdate(BaseModel):
     title: Optional[str] = Field(None, description="文档标题")
     category: Optional[str] = Field(None, description="文档分类")
+    content: Optional[str] = Field(None, description="文档内容")
+    review_status: Optional[str] = Field(None, description="审核状态")
+    change_log: Optional[str] = Field(None, description="变更说明")
 
 
 class DocumentSearchRequest(BaseModel):
