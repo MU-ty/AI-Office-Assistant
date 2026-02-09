@@ -3,7 +3,8 @@
 提供周报和工作日志相关的业务逻辑实现
 """
 
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
+import asyncio
 from datetime import datetime, timedelta
 import os
 from sqlalchemy import select, and_, or_, func
@@ -19,6 +20,7 @@ from app.schemas.report import (
 from app.utils.logger import get_logger
 from app.utils.exceptions import ValidationError
 from app.core.config import settings
+from app.services.llm_service import llm_service
 
 logger = get_logger(__name__)
 
@@ -243,48 +245,6 @@ class WeeklyReportService:
             
             logger.info(f"生成周报: {week_identifier}")
             
-            # 检查是否已存在该周的周报
-            query = select(WeeklyReport).where(
-                and_(
-                    WeeklyReport.week == week_identifier,
-                    WeeklyReport.user_id == user_id
-                )
-            )
-            result = await self.db.execute(query)
-            existing = result.scalar_one_or_none()
-            
-            if existing:
-                if existing.status != ReportStatus.DRAFT:
-                    raise ValidationError(f"该周的周报已存在且不可编辑: {week_identifier}")
-
-                # 更新草稿周报
-                existing.title = report_data.title or existing.title or f"周报 {week_identifier}"
-                existing.week_start_date = report_data.week_start_date
-                existing.week_end_date = report_data.week_end_date
-                existing.week = week_identifier
-
-                # 获取该周的工作日志并计算总工时
-                logs_query = select(WorkLog).where(
-                    and_(
-                        WorkLog.log_date >= report_data.week_start_date,
-                        WorkLog.log_date <= report_data.week_end_date,
-                        WorkLog.user_id == user_id
-                    )
-                )
-                logs_result = await self.db.execute(logs_query)
-                logs = logs_result.scalars().all()
-
-                existing.total_hours = sum(log.hours_spent for log in logs)
-                existing.summary = self._generate_summary(logs)
-                existing.content = existing.summary
-                existing.updated_at = datetime.utcnow()
-
-                await self.db.commit()
-                await self.db.refresh(existing)
-
-                logger.info(f"周报更新成功(草稿复用): {existing.id} ({week_identifier})")
-                return WeeklyReportDetailResponse.model_validate(existing)
-            
             # 获取该周的工作日志并计算总工时
             logs_query = select(WorkLog).where(
                 and_(
@@ -298,8 +258,21 @@ class WeeklyReportService:
             
             total_hours = sum(log.hours_spent for log in logs)
             
-            # 生成周报摘要
+            # 生成周报摘要与详细内容
             summary = self._generate_summary(logs)
+            content = self._generate_detail(logs, week_identifier)
+
+            # AI 扩写润色
+            if report_data.ai_polish and llm_service.check_availability():
+                loop = asyncio.get_running_loop()
+                polished = await loop.run_in_executor(
+                    None,
+                    llm_service.polish_weekly_report,
+                    summary,
+                    content
+                )
+                summary = polished.get("summary", summary)
+                content = polished.get("content", content)
             
             # 创建周报记录
             report = WeeklyReport(
@@ -309,7 +282,7 @@ class WeeklyReportService:
                 week_end_date=report_data.week_end_date,
                 week=week_identifier,
                 summary=summary,
-                content=summary,
+                content=content,
                 total_hours=total_hours,
                 status=ReportStatus.DRAFT
             )
@@ -329,25 +302,105 @@ class WeeklyReportService:
     def _generate_summary(self, logs: List[WorkLog]) -> str:
         """根据工作日志生成周报摘要"""
         if not logs:
-            return "本周暂无工作记录"
-        
-        # 按工作类型分组统计
-        work_type_summary = {}
+            return "本周完成：\n- 本周暂无工作记录"
+
+        grouped = self._group_logs(logs)
+        top_tasks = self._pick_top_tasks(grouped, limit=5)
+        risks = self._extract_risks(logs)
+        plans = self._extract_plans(logs)
+
+        lines = ["本周完成："]
+        if top_tasks:
+            lines.extend([f"- {item}" for item in top_tasks])
+        else:
+            lines.append("- 完成常规工作推进")
+
+        lines.append("")
+        lines.append("问题与风险：")
+        if risks:
+            lines.extend([f"- {item}" for item in risks])
+        else:
+            lines.append("- 暂无突出问题")
+
+        lines.append("")
+        lines.append("下周计划：")
+        if plans:
+            lines.extend([f"- {item}" for item in plans])
+        else:
+            lines.append("- 继续推进本周任务并跟进结果")
+
+        return "\n".join(lines)
+
+    def _generate_detail(self, logs: List[WorkLog], week_identifier: str) -> str:
+        """生成更清晰的周报详细内容"""
+        if not logs:
+            return "本周暂无工作记录。"
+
+        grouped = self._group_logs(logs)
+
+        lines = [f"# 周报详情 ({week_identifier})", "", "## 工作概览"]
+        for work_type, data in grouped.items():
+            lines.append(f"- {work_type}: {data['hours']:.1f}小时")
+
+        lines.append("")
+        lines.append("## 关键进展")
+        for work_type, data in grouped.items():
+            lines.append(f"### {work_type}")
+            for task in data["tasks"]:
+                lines.append(f"- {task}")
+            lines.append("")
+
+        risks = self._extract_risks(logs)
+        lines.append("## 问题与风险")
+        if risks:
+            lines.extend([f"- {item}" for item in risks])
+        else:
+            lines.append("- 暂无突出问题")
+
+        plans = self._extract_plans(logs)
+        lines.append("")
+        lines.append("## 下周计划")
+        if plans:
+            lines.extend([f"- {item}" for item in plans])
+        else:
+            lines.append("- 继续推进本周任务并跟进结果")
+
+        return "\n".join(lines)
+
+    def _group_logs(self, logs: List[WorkLog]) -> Dict[str, Dict[str, Any]]:
+        grouped: Dict[str, Dict[str, Any]] = {}
         for log in logs:
-            if log.work_type not in work_type_summary:
-                work_type_summary[log.work_type] = {
-                    "hours": 0,
-                    "tasks": []
-                }
-            work_type_summary[log.work_type]["hours"] += log.hours_spent
-            work_type_summary[log.work_type]["tasks"].append(log.task_description)
-        
-        # 构建摘要文本
-        summary_parts = ["本周工作总结:\n"]
-        for work_type, data in work_type_summary.items():
-            summary_parts.append(f"- {work_type}: {data['hours']:.1f}小时")
-        
-        return "\n".join(summary_parts)
+            work_type = log.work_type or "其他"
+            if work_type not in grouped:
+                grouped[work_type] = {"hours": 0.0, "tasks": []}
+            grouped[work_type]["hours"] += float(log.hours_spent or 0)
+            grouped[work_type]["tasks"].append(log.task_description)
+        return grouped
+
+    def _pick_top_tasks(self, grouped: Dict[str, Dict[str, Any]], limit: int = 5) -> List[str]:
+        tasks: List[str] = []
+        for work_type, data in grouped.items():
+            for task in data["tasks"]:
+                tasks.append(f"{work_type}：{task}")
+        return tasks[:limit]
+
+    def _extract_risks(self, logs: List[WorkLog]) -> List[str]:
+        keywords = ["风险", "问题", "阻塞", "延期", "卡点", "Bug", "故障", "缺陷", "异常"]
+        results = []
+        for log in logs:
+            desc = log.task_description or ""
+            if any(k.lower() in desc.lower() for k in keywords):
+                results.append(desc)
+        return results[:5]
+
+    def _extract_plans(self, logs: List[WorkLog]) -> List[str]:
+        keywords = ["下周", "计划", "准备", "安排", "目标", "排期", "优化", "跟进"]
+        results = []
+        for log in logs:
+            desc = log.task_description or ""
+            if any(k in desc for k in keywords):
+                results.append(desc)
+        return results[:5]
     
     async def list_reports(
         self,
@@ -386,7 +439,7 @@ class WeeklyReportService:
             query = select(WeeklyReport)
             if conditions:
                 query = query.where(and_(*conditions))
-            query = query.order_by(WeeklyReport.week_start_date.desc()).offset(skip).limit(limit)
+            query = query.order_by(WeeklyReport.created_at.desc()).offset(skip).limit(limit)
             
             result = await self.db.execute(query)
             reports = result.scalars().all()

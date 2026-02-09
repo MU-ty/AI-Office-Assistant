@@ -66,6 +66,7 @@ export async function createWeeklyReport(payload: {
   title?: string;
   week_start_date: string;
   week_end_date: string;
+  ai_polish?: boolean;
 }): Promise<WeeklyReport> {
   const response = await fetch(`${API_BASE}/api/v1/reports`, {
     method: "POST",
@@ -120,6 +121,16 @@ export async function updateWeeklyReport(
     throw new Error(await response.text());
   }
   return response.json();
+}
+
+export async function deleteWeeklyReport(reportId: number) {
+  const response = await fetch(`${API_BASE}/api/v1/reports/${reportId}`, {
+    method: "DELETE",
+    headers: { ...getAuthHeaders() }
+  });
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
 }
 
 export async function submitWeeklyReport(reportId: number): Promise<WeeklyReport> {

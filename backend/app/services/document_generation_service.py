@@ -162,6 +162,7 @@ class DocumentGenerationService:
             from reportlab.lib import colors  # type: ignore
             from reportlab.pdfbase import pdfmetrics  # type: ignore
             from reportlab.pdfbase.ttfonts import TTFont  # type: ignore
+            from reportlab.pdfbase.cidfonts import UnicodeCIDFont  # type: ignore
             import os
             import platform
             
@@ -206,8 +207,17 @@ class DocumentGenerationService:
                         continue
             
             if not font_registered:
+                # 使用内置CJK字体作为兜底，避免中文乱码
+                try:
+                    font_name = "STSong-Light"
+                    pdfmetrics.registerFont(UnicodeCIDFont(font_name))
+                    logger.info("使用内置CJK字体 STSong-Light 作为PDF中文兜底")
+                    font_registered = True
+                except Exception as e:
+                    logger.warning(f"内置CJK字体注册失败: {e}")
+
+            if not font_registered:
                 logger.warning("未能找到中文字体，PDF中文显示可能有问题。建议安装SimHei字体")
-                # 使用Helvetica作为fallback
                 font_name = 'Helvetica'
             
             # 创建PDF文档

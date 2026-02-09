@@ -57,3 +57,61 @@ export function getDetailTemplate() {
     "1. "
   ].join("\n");
 }
+
+type SectionKey = "completed" | "risks" | "plans";
+
+const sectionMap: Record<string, SectionKey> = {
+  "本周完成": "completed",
+  "问题与风险": "risks",
+  "下周计划": "plans"
+};
+
+export function parseWeeklySections(text?: string | null) {
+  const result = {
+    completed: [] as string[],
+    risks: [] as string[],
+    plans: [] as string[]
+  };
+  if (!text) return result;
+
+  const lines = text.split(/\r?\n/).map((line) => line.trim());
+  let current: SectionKey | null = null;
+
+  for (const line of lines) {
+    if (!line) continue;
+    const header = line.replace(/[:：]\s*$/, "");
+    if (sectionMap[header]) {
+      current = sectionMap[header];
+      continue;
+    }
+    if (!current) continue;
+    const cleaned = line.replace(/^[-*\d\.\)]+\s*/, "").trim();
+    if (cleaned) {
+      result[current].push(cleaned);
+    }
+  }
+
+  return result;
+}
+
+export function getSummaryPreview(summary?: string | null) {
+  if (!summary) return "暂无摘要";
+  const sections = parseWeeklySections(summary);
+  const all = [...sections.completed, ...sections.risks, ...sections.plans];
+  if (!all.length) return summary.slice(0, 60);
+  return all.slice(0, 2).join("；");
+}
+
+export function getPlaceholderCount(text?: string | null) {
+  if (!text) return 0;
+  const lines = text.split(/\r?\n/);
+  let count = 0;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (trimmed === "-" || trimmed === "-" || trimmed === "- " || trimmed === "1." || trimmed === "1." || trimmed === "1. ") {
+      count += 1;
+    }
+  }
+  return count;
+}

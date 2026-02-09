@@ -59,23 +59,18 @@ class AliyunASRService:
         dashscope.api_key = self.api_key
 
     async def transcribe_file(self, file_path: str, model: str = 'fun-asr-realtime') -> Dict[str, Any]:
-        """
-        使用阿里云实时语音识别 API 转录本地文件
-        
-        Args:
-            file_path: 音频文件路径 (建议为 16k 16bit mono wav)
-            model: 模型名称，可选 'fun-asr-realtime', 'paraformer-realtime-v1' 等
-            
-        Returns:
-            包含转录文本和分句信息的字典
-        """
+        """使用阿里云实时语音识别 API 转录本地文件 (非阻塞封装)"""
+        return await asyncio.to_thread(self._transcribe_file_blocking, file_path, model)
+
+    def _transcribe_file_blocking(self, file_path: str, model: str) -> Dict[str, Any]:
+        """阻塞式转录实现，供线程池调用"""
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Audio file not found: {file_path}")
 
         callback = AliyunRecognitionCallback()
         recognition = Recognition(
             model=model,
-            format='pcm', # 默认音频服务转换后的格式
+            format='pcm',
             sample_rate=16000,
             semantic_punctuation_enabled=True,
             callback=callback
@@ -83,40 +78,35 @@ class AliyunASRService:
 
         try:
             recognition.start()
-            
-            # 以流的形式读取文件并发送
-            # 模拟实时发送，每 100ms 发送一次 3200 bytes (16000Hz * 2bytes/sample * 0.1s)
-            chunk_size = 3200 
+
+            chunk_size = 3200
             with open(file_path, 'rb') as f:
                 while True:
                     data = f.read(chunk_size)
                     if not data:
                         break
                     recognition.send_audio_frame(data)
-                    # 模拟实时流，避免发送过快（虽然 API 支持，但模拟流更符合其实时识别的设计）
-                    # await asyncio.sleep(0.05) 
-            
+
             recognition.stop()
-            
-            # 等待回调完成
-            timeout = 30 # 30秒超时
+
+            timeout = 30
             start_time = time.time()
             while not callback.is_complete and time.time() - start_time < timeout:
-                await asyncio.sleep(0.1)
-            
+                time.sleep(0.1)
+
             if callback.error_message:
                 raise Exception(f"Aliyun ASR error: {callback.error_message}")
-            
+
             return {
                 "text": callback.full_text,
                 "segments": callback.segments
             }
-            
+
         except Exception as e:
             logger.error(f"Aliyun ASR transcription failed: {e}")
             try:
                 recognition.stop()
-            except:
+            except Exception:
                 pass
             raise
 
