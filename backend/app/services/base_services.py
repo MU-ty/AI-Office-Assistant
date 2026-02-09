@@ -19,6 +19,7 @@ from app.models.translation import TranslationTask, TranslationTerminology
 from app.models.ppt import PPTProject
 from app.core.config import settings
 from app.services.polish_normalization_service import AcademicNormalizationService
+from app.services.llm_service import llm_service
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -1268,12 +1269,35 @@ class PPTService:
         if not slides:
             raise ValueError("请先生成幻灯片")
 
-        file_url = self._export_as_pptx(project, slides)
+        expanded_slides = await self._expand_slides_for_export(project.title, slides)
+
+        file_url = self._export_as_pptx(project, expanded_slides)
         project.file_path = file_url
         project.updated_at = datetime.utcnow()
         await self.db.commit()
         await self.db.refresh(project)
         return {"project_id": project.id, "format": "pptx", "path": file_url}
+
+    async def _expand_slides_for_export(self, title: str, slides: list) -> list:
+        if not llm_service.check_availability():
+            return slides
+
+        async def _expand_slide(slide: dict) -> dict:
+            bullets = slide.get("bullets") or []
+            if not bullets:
+                return slide
+            expanded = await llm_service.expand_ppt_bullets(
+                title=title,
+                slide_title=slide.get("title") or "",
+                bullets=bullets,
+            )
+            return {
+                **slide,
+                "bullets": expanded,
+            }
+
+        results = await asyncio.gather(*[_expand_slide(slide) for slide in slides])
+        return results
 
     async def _build_outline(self, title: str, content: str, tone: str) -> dict:
         logger.info(f"_build_outline: QWEN_API_KEY={'已配置' if settings.QWEN_API_KEY else '未配置'}")

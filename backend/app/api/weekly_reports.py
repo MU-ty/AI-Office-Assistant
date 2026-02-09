@@ -171,6 +171,7 @@ async def create_weekly_report(
     - **title**: 周报标题 (可选)
     - **week_start_date**: 周开始日期 (必需, ISO格式)
     - **week_end_date**: 周结束日期 (必需, ISO格式)
+    - **ai_polish**: 是否使用AI扩写润色 (可选)
     """
     try:
         service = WeeklyReportService(db)
