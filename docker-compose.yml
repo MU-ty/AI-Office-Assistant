@@ -15,6 +15,7 @@ volumes:
   loki_data:
   promtail_data:
   weaviate_data:
+  elasticsearch_data:
 
 # 中间件组 - 只保留使用官方镜像的服务
 services:
@@ -150,6 +151,52 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+
+  # Elasticsearch 全文检索引擎
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    container_name: office_assistant_elasticsearch
+    networks: [office_network]
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
+
+  # Kibana 数据可视化
+  kibana:
+    image: kibana:8.12.0
+    container_name: office_assistant_kibana
+    networks: [office_network]
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
     logging:
       driver: "json-file"
       options:

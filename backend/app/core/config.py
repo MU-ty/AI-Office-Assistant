@@ -64,7 +64,10 @@ class Settings(BaseSettings):
     REDIS_CACHE_TTL: int = 3600  # 1小时
     
     # Elasticsearch
-    ELASTICSEARCH_URL: str = "http://localhost:9200"
+    ELASTICSEARCH_URL: str = "http://elasticsearch:9200"
+    ELASTICSEARCH_USERNAME: str = ""
+    ELASTICSEARCH_PASSWORD: str = ""
+    ELASTICSEARCH_VERIFY_CERTS: bool = False
     
     # ============================================================
     # JWT认证配置

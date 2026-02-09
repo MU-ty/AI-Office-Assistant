@@ -96,7 +96,7 @@ async def list_ppt_projects(
 
 @router.get("/{project_id}")
 async def get_ppt_project(
-    project_id: str,
+    project_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
@@ -114,7 +114,7 @@ async def get_ppt_project(
 
 @router.put("/{project_id}")
 async def update_ppt_project(
-    project_id: str,
+    project_id: int,
     request: PPTUpdateRequest,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
@@ -133,7 +133,7 @@ async def update_ppt_project(
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_ppt_project(
-    project_id: str,
+    project_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
@@ -150,7 +150,7 @@ async def delete_ppt_project(
 
 @router.post("/{project_id}/generate")
 async def generate_ppt_slides(
-    project_id: str,
+    project_id: int,
     request: PPTGenerateRequest,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
@@ -175,7 +175,7 @@ async def generate_ppt_slides(
 
 @router.get("/{project_id}/slides")
 async def get_ppt_slides(
-    project_id: str,
+    project_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
@@ -193,7 +193,7 @@ async def get_ppt_slides(
 
 @router.post("/{project_id}/export")
 async def export_pptx_file(
-    project_id: str,
+    project_id: int,
     request: PPTExportRequest,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)

@@ -275,7 +275,12 @@ class PolishService:
             if filter_type:
                 query = query.where(PolishIssue.issue_type == filter_type)
             
-            query = query.order_by(PolishIssue.location)
+            # 在 PostgreSQL 中，JSON 类型不能直接用于 ORDER BY
+            # 我们根据 location 内部的 start 字段进行排序
+            # 使用 text() 或 cast 来处理不同数据库方言的兼容性
+            from sqlalchemy import text
+            query = query.order_by(text("location->>'start'"))
+            
             result = await self.db.execute(query)
             issues = result.scalars().all()
             
@@ -1306,9 +1311,16 @@ class PPTService:
             return self._fallback_outline(title, content)
 
         prompt = (
-            "你是专业PPT策划助手，请输出严格JSON格式，不要解释。\n"
+            "你是资深的PPT策划和文案专家，请根据输入内容生成一份高质量、内容详实的PPT大纲。请输出严格JSON格式，不要解释。\n"
             "输出格式：{\"title\": str, \"slides\": [{\"title\": str, \"bullets\": [str], \"notes\": str}]}\n"
-            "要求：1) 幻灯片6-10页 2) 重点清晰 3) 语气自然专业 4) 不要出现AI/模型等字眼\n"
+            "要求：\n"
+            "1) 幻灯片6-12页，逻辑严密，涵盖背景、核心内容、结论等。\n"
+            "2) 每页幻灯片的内容要丰富详细：\n"
+            "   - 每页标题(title)要吸睛且专业。\n"
+            "   - 每页正文(bullets)包含3-6条详细要点，每条要点不少于20字，不要只有简单的词组，要包含具体解释、逻辑支撑或例证。\n"
+            "   - 每页备注(notes)提供详细的演讲稿建议或背景补充信息。\n"
+            "3) 语气风格需符合指定的表达风格，专业且具有感染力。\n"
+            "4) 严禁出现“AI”、“模型”、“生成的文本”等字眼。\n"
             f"演示主题：{title}\n"
             f"表达风格：{tone}\n"
             f"输入内容：\n{content[:60000]}"
@@ -1324,12 +1336,12 @@ class PPTService:
         payload = {
             "model": settings.QWEN_MODEL_NAME,
             "messages": [
-                {"role": "system", "content": "你是专业PPT策划助手。"},
+                {"role": "system", "content": "你是资深的PPT策划和文案专家。"},
                 {"role": "user", "content": prompt},
             ],
-            "temperature": 0.2,
+            "temperature": 0.3,
             "top_p": 0.9,
-            "max_tokens": 1800,
+            "max_tokens": 3000,
             "stream": False,
         }
 

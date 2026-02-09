@@ -28,7 +28,10 @@ from app.api import (
     weekly_reports,
     stream,  # 新增: 流式处理服务
     asr,  # 新增: 语音识别服务
-    weknora
+    weknora,
+    knowledge, # 新增
+    search,     # 新增
+    chat       # 新增
 )
 
 logger = get_logger(__name__)
@@ -55,6 +58,24 @@ async def lifespan(app: FastAPI):
         logger.warning(f"⚠️  WeKnora 模型配置初始化失败: {e}")
         # 不 raise，让应用继续启动
     
+    # 自动初始化 ES 索引
+    try:
+        from app.services.search_service import search_service
+        import asyncio
+        # 等待 ES 启动 (简单的重试机制)
+        for i in range(5):
+            try:
+                await search_service.init_index()
+                logger.info("✅ ES 索引初始化完成")
+                break
+            except Exception as e:
+                if i == 4:
+                    raise e
+                logger.warning(f"⚠️ ES 连接失败，正在重试 ({i+1}/5): {e}")
+                await asyncio.sleep(5)
+    except Exception as e:
+        logger.error(f"❌ ES 索引初始化失败: {e}")
+
     yield
     
     # 关闭事件
@@ -233,6 +254,27 @@ app.include_router(
     weknora.router,
     prefix="/api/v1/weknora",
     tags=["WeKnora"]
+)
+
+# 知识库管理
+app.include_router(
+    knowledge.router,
+    prefix="/api/v1/knowledge",
+    tags=["Knowledge"]
+)
+
+# 搜索服务
+app.include_router(
+    search.router,
+    prefix="/api/v1/search",
+    tags=["Search"]
+)
+
+# 智能问答服务
+app.include_router(
+    chat.router,
+    prefix="/api/v1/chat",
+    tags=["Chat"]
 )
 
 
