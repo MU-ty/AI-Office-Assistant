@@ -21,18 +21,4 @@
 
 详细步骤请参考：[Docker 一键启动指南](file:///d:/Project/AI-Office-Assistant/AI-Office-Assistant/README_DOCKER.md)
 
-### 💻 本地开发环境
-
-#### 后端
-
-`cd backend `
-
-
-`python run_dev_server.py`
-
-### 前端
-
-`cd frontend`
-
-
-`pnpm run dev`
+> 📌后端暂未公开
