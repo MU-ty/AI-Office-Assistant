@@ -21,4 +21,4 @@
 
 详细步骤请参考：[Docker 一键启动指南](file:///d:/Project/AI-Office-Assistant/AI-Office-Assistant/README_DOCKER.md)
 
-> 📌后端暂未公开
+> 📌**后端因商业化规划，暂未对外开放**
