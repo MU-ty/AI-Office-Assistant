@@ -17,6 +17,11 @@
 - 🎨 **PPT智能生成** - 从内容自动生成专业演示文稿
 - 📋 **实习周报生成** - 智能化生成周报，记录实习进度
 
+## 如何参与内测？
+目前已经完成MVP，您如果想参与内测，欢迎填写下方问卷。
+
+<img width="1170" height="1449" alt="内测申请" src="https://github.com/user-attachments/assets/b86634f8-e3b7-487c-a552-21605d039bfa" />
+
 ## 🚀项目预览
 
 <img width="2560" height="1399" alt="image" src="https://github.com/user-attachments/assets/220a2d77-7823-4bf4-a3e4-24d89b4a40f7" />
@@ -42,8 +47,3 @@
 
 <img width="2475" height="1268" alt="image" src="https://github.com/user-attachments/assets/7b8255c6-59d1-41c0-8364-0e3c9476d01d" />
 
-
-## 如何参与内测？
-目前已经完成MVP，您如果想参与内测，欢迎填写下方问卷。
-
-<img width="1170" height="1449" alt="内测申请" src="https://github.com/user-attachments/assets/b86634f8-e3b7-487c-a552-21605d039bfa" />
