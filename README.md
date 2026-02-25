@@ -22,3 +22,7 @@
 详细步骤请参考：[Docker 一键启动指南](file:///d:/Project/AI-Office-Assistant/AI-Office-Assistant/README_DOCKER.md)
 
 > 📌**后端因商业化规划，暂未对外开放**
+
+## 如何参与内测？
+
+<img width="1170" height="1449" alt="内测申请" src="https://github.com/user-attachments/assets/b86634f8-e3b7-487c-a552-21605d039bfa" />
