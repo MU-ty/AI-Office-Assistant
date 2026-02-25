@@ -24,5 +24,6 @@
 ## > 📌**后端因商业化规划，暂未对外开放**
 
 ## 如何参与内测？
+目前已经完成MVP，您如果想参与内测，欢迎填写下方问卷。
 
 <img width="1170" height="1449" alt="内测申请" src="https://github.com/user-attachments/assets/b86634f8-e3b7-487c-a552-21605d039bfa" />
