@@ -22,6 +22,11 @@
 
 <img width="1170" height="1449" alt="内测申请" src="https://github.com/user-attachments/assets/b86634f8-e3b7-487c-a552-21605d039bfa" />
 
+## 部署方式
+```
+docker compose up -d --build
+```
+
 ## 🚀项目预览
 
 <img width="2560" height="1399" alt="image" src="https://github.com/user-attachments/assets/220a2d77-7823-4bf4-a3e4-24d89b4a40f7" />
