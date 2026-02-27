@@ -27,11 +27,13 @@ docker compose up -d --build
 
 ### 后端技术栈
 
-![1771947688534](image/TECHNICAL_ARCHITECTURE_DETAILED/1771947688534.png)
+<img width="7230" height="2380" alt="image" src="https://github.com/user-attachments/assets/9187a7c5-a2ce-4a6c-b957-9ef61f3811d1" />
+
 
 ### 前端技术栈
 
-![1771947901548](image/TECHNICAL_ARCHITECTURE_DETAILED/1771947901548.png)
+<img width="4512" height="2318" alt="image" src="https://github.com/user-attachments/assets/a503104d-73fe-42f1-becd-e8d4d362986c" />
+
 
 ### 基础设施
 
