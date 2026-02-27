@@ -103,7 +103,6 @@ docker compose up -d --build
 </p>
 <p align="center">
 <img width="32%" src="https://github.com/user-attachments/assets/0e9e1518-d865-46ec-8dda-d6a9c061ab8b" />
-<img width="32%" src="https://www.google.com/search?q=https://github.com/user-attachments/assets/65e15d08-9f1d-4odd-ba33-00fa66d587c4" />
 <img width="32%" src="https://github.com/user-attachments/assets/3b19e1fa-c584-4317-a289-29ee2fab390c" />
 </p>
 
